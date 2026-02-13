@@ -17,8 +17,8 @@ This is a static web application for Pub Quiz, including the control panel, join
 </table>
 
 ## Contents
-- controlpanel.html — Admin/control panel interface
-- join.html — Participant join page
+- host.html — Admin/control panel interface
+- play.html — Participant join page
 - questions.html — Quiz/questions interface
 - styles.css — Shared styles
 
@@ -27,8 +27,8 @@ The Node server in `api/https-server.js` now serves these static files on port 8
 
 ### 4. Access the App
 Open your browser and go to:
-- https://your-server-ip:81/controlpanel.html
-- https://your-server-ip:81/join.html
+- https://your-server-ip:81/host.html
+- https://your-server-ip:81/play.html
 - https://your-server-ip:81/questions.html
 
 ---
@@ -51,10 +51,10 @@ Here are other places to tailor the app to your brand:
 
 - Header logo: Replace `images/logo-header.png` and/or edit `header.html` to change the header markup.
 - Footer text/links: Edit `footer.html`.
-- Page titles: Update the `<title>` tags in `controlpanel.html`, `join.html`, and `questions.html`.
+- Page titles: Update the `<title>` tags in `host.html`, `play.html`, and `questions.html`.
 - Favicon: Update the `<link rel="icon">` in each page and replace the referenced icon file in `images/`.
 - Colors, fonts, spacing: Adjust shared styles in `styles.css` (e.g., `:root` variables and component classes like `.card`, `.btn`, `.pill`).
-- Button labels and UI text: Edit the HTML files for `join.html`, `questions.html`, and `controlpanel.html`.
+- Button labels and UI text: Edit the HTML files for `play.html`, `questions.html`, and `host.html`.
 
 # Pub Quiz API
 

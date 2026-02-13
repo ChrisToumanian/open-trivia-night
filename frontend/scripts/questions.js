@@ -20,7 +20,7 @@ if (teamId) {
 
 if (!teamId) {
   alert('Team ID not found. Please join the game first.');
-  window.location.replace('join.html');
+  window.location.replace('play.html');
 }
 
 let currentQuestion = new URLSearchParams(window.location.search).get('q') || 1;
@@ -126,7 +126,7 @@ async function validateGameSession() {
 
   if (!teamId || !storedGameId) {
     clearTeamSession();
-    window.location.replace('join.html');
+    window.location.replace('play.html');
     return false;
   }
 
@@ -141,7 +141,7 @@ async function validateGameSession() {
         hasResetAlerted = true;
         alert('The game has been reset. Please join again.');
       }
-      window.location.replace('join.html');
+      window.location.replace('play.html');
       return false;
     }
   } catch (err) {

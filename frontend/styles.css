@@ -468,7 +468,7 @@ footer a:hover{
 }
 
 
-/* ===== controlpanel.html styles ===== */
+/* ===== host.html styles ===== */
 
 /* header now sized for logo instead of text */
 .header{
@@ -687,7 +687,7 @@ tbody tr{
 }
 
 /* Control panel specific overrides: let the .card fill the container
-   and keep footer nav buttons small (only for controlpanel.html). */
+  and keep footer nav buttons small (only for host.html). */
 .container > .card {
   width: 100%;
   max-width: 100%;
@@ -702,7 +702,7 @@ tbody tr{
 }
 
 
-/* ===== join.html styles ===== */
+/* ===== play.html styles ===== */
 
 .wrap{
   min-height:100%;
@@ -919,7 +919,7 @@ font-family:var(--font-sans);
   margin-top: auto;
 }
 
-/* ===== pub/controlpanel.html page-scoped styles ===== */
+/* ===== pub/host.html page-scoped styles ===== */
 .controlpanel-page {
   min-height: 100vh;
   display: flex;
