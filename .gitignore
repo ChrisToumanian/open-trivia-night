@@ -1,2 +1,4 @@
+api/node_modules/
+api/quiz.db
 shared/config.json
 shared/brand.json
