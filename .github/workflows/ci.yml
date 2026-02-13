@@ -17,6 +17,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
+      - name: Install HTMLHint
+        run: npm install --no-save htmlhint@latest
+      - name: HTML lint
+        run: npx htmlhint "frontend/**/*.html"
       - name: Syntax check server
         run: node --check api/https-server.js
       - name: Syntax check frontend scripts
