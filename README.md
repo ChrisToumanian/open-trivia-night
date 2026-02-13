@@ -7,11 +7,11 @@ This is a static web application for Pub Quiz, including the control panel, join
 <table>
 	<tbody>
 		<tr>
-			<td><img src="images/previews/join_game_preview.jpg" alt="Join Game preview" width="260" /></td>
-			<td><img src="images/previews/questions_preview.jpg" alt="Questions preview" width="260" /></td>
+			<td><img src="shared/images/previews/join_game_preview.jpg" alt="Join Game preview" width="260" /></td>
+			<td><img src="shared/images/previews/questions_preview.jpg" alt="Questions preview" width="260" /></td>
 		</tr>
 		<tr>
-			<td colspan="2" align="center"><img src="images/previews/control_panel_preview.jpg" alt="Control Panel preview" width="520" /></td>
+			<td colspan="2" align="center"><img src="shared/images/previews/control_panel_preview.jpg" alt="Control Panel preview" width="520" /></td>
 		</tr>
 	</tbody>
 </table>
