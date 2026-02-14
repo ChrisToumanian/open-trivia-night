@@ -304,6 +304,29 @@ async function loadQuestionConfig() {
     document.querySelector('.question-header').textContent = label;
     document.title = `Pub Trivia - ${label}`;
 
+    // Display category and icon if available
+    const categoryDisplay = document.getElementById('categoryDisplay');
+    const categoryIcon = document.getElementById('categoryIcon');
+    const categoryLabel = document.getElementById('categoryLabel');
+    
+    if (questionConfig.category || questionConfig.icon) {
+      categoryDisplay.style.display = 'flex';
+      if (questionConfig.icon) {
+        categoryIcon.textContent = questionConfig.icon;
+        categoryIcon.style.display = 'inline';
+      } else {
+        categoryIcon.style.display = 'none';
+      }
+      if (questionConfig.category) {
+        categoryLabel.textContent = questionConfig.category;
+        categoryLabel.style.display = 'inline';
+      } else {
+        categoryLabel.style.display = 'none';
+      }
+    } else {
+      categoryDisplay.style.display = 'none';
+    }
+
     const pointsWrap = document.querySelector('.points-wrap');
     const pointsButtons = document.querySelector('.points-buttons');
     const bonusLabel = document.querySelector('.bonus-label');

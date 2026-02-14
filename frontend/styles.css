@@ -75,6 +75,30 @@ body{
   gap: 10px;
 }
 
+.category-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px 0 12px 0;
+  padding: 8px 16px;
+  background: rgba(241, 221, 177, 0.20);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(202, 161, 86, 0.25);
+}
+
+.category-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.category-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--gold-3);
+  letter-spacing: 0.01em;
+}
+
 .card{
   width: min(520px, 100%);
   background: rgba(255,255,255,0.82);
