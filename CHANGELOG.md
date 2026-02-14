@@ -44,8 +44,8 @@ The format is based on Keep a Changelog, and entries are grouped by day based on
 
 ### Changed
 - Removed default point selection on the questions page so players must choose a wager.
-- Moved control panel JavaScript into scripts/controlpanel.js.
-- Moved join page JavaScript into scripts/join.js.
+- Moved control panel JavaScript into scripts/host.js.
+- Moved join page JavaScript into scripts/play.js.
 - Moved leaderboard JavaScript into scripts/leaderboard.js.
 - Moved questions page JavaScript into scripts/questions.js.
 - Added a control panel link to the leaderboard top bar.

@@ -214,6 +214,7 @@ const QUESTION_STORAGE_KEY = 'controlpanel.currentQuestion';
 let maxQuestions = 20;
 let currentQuestion = 1;
 const questionLabelCache = new Map();
+const questionMetaCache = new Map();
 
 function initCurrentQuestion() {
   const storedQuestion = parseInt(localStorage.getItem(QUESTION_STORAGE_KEY) || '', 10);
@@ -224,18 +225,26 @@ function initCurrentQuestion() {
 
 initCurrentQuestion();
 
-async function loadQuestionLabel(questionNum) {
-  if (questionLabelCache.has(questionNum)) return questionLabelCache.get(questionNum);
+async function loadQuestionMeta(questionNum) {
+  if (questionMetaCache.has(questionNum)) return questionMetaCache.get(questionNum);
   try {
     const res = await fetch(API_BASE + '/question-config/' + questionNum, { cache: 'no-store' });
     if (!res.ok) throw new Error('Failed to load question config');
     const cfg = await res.json();
-    const label = cfg.label || `Question ${questionNum}`;
-    questionLabelCache.set(questionNum, label);
-    return label;
+    const meta = {
+      label: cfg.label || `Question ${questionNum}`,
+      category: cfg.category || '',
+      icon: cfg.icon || ''
+    };
+    questionMetaCache.set(questionNum, meta);
+    questionLabelCache.set(questionNum, meta.label);
+    return meta;
   } catch (err) {
     console.error('Error loading question label:', err);
-    return `Question ${questionNum}`;
+    const fallback = { label: `Question ${questionNum}`, category: '', icon: '' };
+    questionMetaCache.set(questionNum, fallback);
+    questionLabelCache.set(questionNum, fallback.label);
+    return fallback;
   }
 }
 
@@ -257,10 +266,35 @@ function updateNavButtons() {
 }
 
 async function updatePill() {
-  const label = await loadQuestionLabel(currentQuestion);
-  document.querySelector('.question-header').textContent = label;
+  const meta = await loadQuestionMeta(currentQuestion);
+  document.querySelector('.question-header').textContent = meta.label;
   localStorage.setItem(QUESTION_STORAGE_KEY, String(currentQuestion));
   updateNavButtons();
+
+  const categoryDisplay = document.getElementById('categoryDisplay');
+  const categoryIcon = document.getElementById('categoryIcon');
+  const categoryLabel = document.getElementById('categoryLabel');
+  if (!categoryDisplay || !categoryIcon || !categoryLabel) return;
+
+  const categoryText = String(meta.category || '').trim();
+  const iconText = String(meta.icon || '').trim();
+  if (categoryText || iconText) {
+    categoryDisplay.style.display = 'flex';
+    if (iconText) {
+      categoryIcon.textContent = iconText;
+      categoryIcon.style.display = 'inline';
+    } else {
+      categoryIcon.style.display = 'none';
+    }
+    if (categoryText) {
+      categoryLabel.textContent = categoryText;
+      categoryLabel.style.display = 'inline';
+    } else {
+      categoryLabel.style.display = 'none';
+    }
+  } else {
+    categoryDisplay.style.display = 'none';
+  }
 }
 
 async function reloadForQuestion() {
