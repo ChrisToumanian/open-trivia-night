@@ -186,3 +186,126 @@ Game config defaults live in shared and are loaded by the API.
 - Optional override (ignored by git): `shared/config.json`
 
 To customize questions, copy `shared/config.default.json` to `shared/config.json` and edit the override. The API will prefer the override if it exists.
+
+## 🚀 Deployment
+
+### Google Cloud Run with Cloud Build (Recommended)
+
+This setup uses a `Dockerfile` and `cloudbuild.yaml` for automated deployments.
+
+**Prerequisites:**
+- Google Cloud project with Cloud Run and Cloud Build enabled
+- Docker image repository (Artifact Registry)
+- Git repository connected to Cloud Build trigger
+
+**Steps:**
+1. Push your code to GitHub (or your connected Git repository)
+2. Cloud Build will automatically detect `cloudbuild.yaml` and build the Docker image
+3. The image is pushed to Artifact Registry
+4. Deploy to Cloud Run:
+   ```bash
+   gcloud run deploy open-trivia-night \
+     --image=us-west1-docker.pkg.dev/PROJECT_ID/cloud-run-source-deploy/open-trivia-night/open-trivia-night-git \
+     --region=us-west1 \
+     --platform=managed \
+     --port=8080 \
+     --memory=512Mi
+   ```
+5. Cloud Run will automatically handle HTTPS termination
+
+**Notes:**
+- The server runs on PORT 8080 (set by Cloud Run automatically)
+- No SSL certificates needed (Cloud Run provides HTTPS)
+- Database persists in `/app/data` (ephemeral; use Cloud SQL for production)
+
+### Docker
+
+Run the app directly in a Docker container.
+
+**Build the image:**
+```bash
+docker build -t open-trivia-night:latest .
+```
+
+**Run the container:**
+```bash
+docker run -d \
+  --name trivia-night \
+  -p 8080:8080 \
+  -e PORT=8080 \
+  -v trivia-data:/app/data \
+  open-trivia-night:latest
+```
+
+**View logs:**
+```bash
+docker logs -f trivia-night
+```
+
+**Stop the container:**
+```bash
+docker stop trivia-night
+docker rm trivia-night
+```
+
+### Procfile (Heroku / Buildpacks)
+
+If using Heroku or similar buildpack-based platforms, use the provided `Procfile`.
+
+**Deploy to Heroku:**
+```bash
+heroku login
+heroku create your-app-name
+git push heroku main
+```
+
+**Procfile contents:**
+```
+web: node api/https-server.js
+```
+
+**Set port on Heroku:**
+Heroku automatically sets `PORT` via environment variables; the app respects this.
+
+**View logs:**
+```bash
+heroku logs --tail -a your-app-name
+```
+
+### Local PM2 Management
+
+For production-like local deployments, use PM2 with `ecosystem.config.js`.
+
+**Start the app:**
+```bash
+pm2 start ecosystem.config.js
+pm2 save
+```
+
+**Manage the app:**
+```bash
+pm2 status
+pm2 logs open-trivia-night
+pm2 stop open-trivia-night
+pm2 restart open-trivia-night
+pm2 delete open-trivia-night
+```
+
+**Auto-start on reboot:**
+```bash
+pm2 startup
+pm2 save
+```
+
+### Environment Variables
+
+All deployment types respect these environment variables:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | 8080 | Port the server listens on |
+
+The app automatically:
+- Uses HTTPS if SSL certificates exist at `/etc/letsencrypt/live/zipfx.net/`
+- Falls back to HTTP otherwise (suitable for Cloud Run or development)
+- Creates/initializes the SQLite database on startup
