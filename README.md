@@ -213,6 +213,24 @@ This setup uses a `Dockerfile` and `cloudbuild.yaml` for automated deployments.
    ```
 5. Cloud Run will automatically handle HTTPS termination
 
+## Deploying from Cloud Shell
+Go to https://console.cloud.google.com/run/overview, create a new project and open the Cloud Shell in the upper-right. Ensure billing is set up, which you can do by attempting to create a new service.
+```
+# In the client’s Google Cloud project (Cloud Shell)
+git clone https://github.com/ChrisToumanian/open-trivia-night.git
+
+cd open-trivia-night
+
+gcloud builds get-default-service-account
+
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
+
+gcloud run deploy open-trivia-night \
+  --source . \
+  --region us-west1 \
+  --allow-unauthenticated
+```
+
 **Notes:**
 - The server runs on PORT 8080 (set by Cloud Run automatically)
 - No SSL certificates needed (Cloud Run provides HTTPS)
