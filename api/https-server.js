@@ -311,6 +311,11 @@ console.log('SHARED_DIR:', SHARED_DIR);
 console.log('FRONTEND_DIR exists:', fs.existsSync(FRONTEND_DIR));
 console.log('SHARED_DIR exists:', fs.existsSync(SHARED_DIR));
 
+// Serve play.html as the default page for the root path
+app.get('/', (req, res) => {
+  res.sendFile(path.join(FRONTEND_DIR, 'play.html'));
+});
+
 app.use(express.static(FRONTEND_DIR));
 app.use('/shared', express.static(SHARED_DIR));
 
