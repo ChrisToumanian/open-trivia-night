@@ -189,14 +189,30 @@ document.addEventListener('click', function(e) {
   const controlsDiv = btn.closest('.points-controls');
   const pointsValue = controlsDiv.querySelector('.points-value');
   let current = Number.parseFloat(pointsValue.textContent) || 0;
+  
+  // Check if half points are allowed for the current question
+  const currentQuestionNum = getCurrentQuestion();
+  const questionMeta = questionMetaCache.get(currentQuestionNum);
+  const allowHalfPoints = questionMeta?.allowHalfPoints ?? true; // Default to true if not yet loaded
+  
   if (btn.classList.contains('plus')) {
-    if (current === 0) current = 0.5;
-    else if (current === 0.5) current = 1;
-    else current += 1;
+    if (allowHalfPoints) {
+      if (current === -0.5) current = 0;
+      else if (current === 0) current = 0.5;
+      else if (current === 0.5) current = 1;
+      else current += 1;
+    } else {
+      current += 1;
+    }
   } else if (btn.classList.contains('minus')) {
-    if (current === 0.5) current = 0;
-    else if (current === 1) current = 0.5;
-    else current -= 1;
+    if (allowHalfPoints) {
+      if (current === 0.5) current = 0;
+      else if (current === 0) current = -0.5;
+      else if (current === -0.5) current = -1;
+      else current -= 1;
+    } else {
+      current -= 1;
+    }
   }
   pointsValue.textContent = formatPointsValue(current);
   const row = btn.closest('tr[data-team-id]');
@@ -238,14 +254,15 @@ async function loadQuestionMeta(questionNum) {
     const meta = {
       label: cfg.label || `Question ${questionNum}`,
       category: cfg.category || '',
-      icon: cfg.icon || ''
+      icon: cfg.icon || '',
+      allowHalfPoints: cfg.allowHalfPoints ?? false
     };
     questionMetaCache.set(questionNum, meta);
     questionLabelCache.set(questionNum, meta.label);
     return meta;
   } catch (err) {
     console.error('Error loading question label:', err);
-    const fallback = { label: `Question ${questionNum}`, category: '', icon: '' };
+    const fallback = { label: `Question ${questionNum}`, category: '', icon: '', allowHalfPoints: false };
     questionMetaCache.set(questionNum, fallback);
     questionLabelCache.set(questionNum, fallback.label);
     return fallback;
