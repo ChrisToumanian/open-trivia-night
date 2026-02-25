@@ -5,8 +5,7 @@ const fs = require('fs');
 const https = require('https');
 const path = require('path');
 
-const API_PORT = 3000;
-const WEB_PORT = 81;
+const PORT = process.env.PORT || 8080;
 const FRONTEND_DIR = path.resolve(__dirname, '..', 'frontend');
 const SHARED_DIR = path.resolve(__dirname, '..', 'shared');
 
@@ -126,14 +125,17 @@ if (!getCurrentGame()) {
   db.prepare('INSERT INTO games (passcode) VALUES (?)').run('0000');
 }
 
-// Get current game info
-app.get('/current-game', (req, res) => {
+// Create API router
+const apiRouter = express.Router();
+
+// Mount all API routes on the router
+apiRouter.get('/current-game', (req, res) => {
   const game = getCurrentGame();
   res.json(game ? { id: game.id, passcode: game.passcode } : null);
 });
 
 // Get question configuration
-app.get('/question-config/:number', (req, res) => {
+apiRouter.get('/question-config/:number', (req, res) => {
   const questionNum = req.params.number;
   const questionConfig = getQuestionConfig(questionNum);
   const stored = getQuestionCategory(questionNum) || {};
@@ -147,17 +149,17 @@ app.get('/question-config/:number', (req, res) => {
 });
 
 // Public config info for clients
-app.get('/config', (req, res) => {
+apiRouter.get('/config', (req, res) => {
   res.json({ maxQuestions: getMaxQuestions() });
 });
 
 // Categories list for host dropdown
-app.get('/categories', (req, res) => {
+apiRouter.get('/categories', (req, res) => {
   res.json({ categories });
 });
 
 // Save category selection per question
-app.post('/question-category', (req, res) => {
+apiRouter.post('/question-category', (req, res) => {
   const questionNumber = Number(req.body.questionNumber);
   if (!Number.isFinite(questionNumber) || questionNumber < 1) {
     return res.status(400).json({ error: 'Invalid question number' });
@@ -179,7 +181,7 @@ app.post('/question-category', (req, res) => {
 });
 
 // Join game
-app.post('/join', (req, res) => {
+apiRouter.post('/join', (req, res) => {
   const { name, code } = req.body;
   const game = getCurrentGame();
   
@@ -193,7 +195,7 @@ app.post('/join', (req, res) => {
 });
 
 // Submit answer
-app.post('/answer', (req, res) => {
+apiRouter.post('/answer', (req, res) => {
   const { teamId, question, answer, bonusAnswer, chosenPoints, awardedPoints, points } = req.body;
   // If points is present and neither chosenPoints nor awardedPoints, treat as chosenPoints (legacy)
   const chosen = chosenPoints !== undefined ? chosenPoints : (points !== undefined ? points : undefined);
@@ -218,7 +220,7 @@ app.post('/answer', (req, res) => {
 });
 
 // Host view - get answers for a question in current game
-app.get('/answers/:question', (req, res) => {
+apiRouter.get('/answers/:question', (req, res) => {
   const game = getCurrentGame();
   if (!game) {
     return res.json([]);
@@ -234,7 +236,7 @@ app.get('/answers/:question', (req, res) => {
 });
 
 // Teams list for current game
-app.get('/teams', (req, res) => {
+apiRouter.get('/teams', (req, res) => {
   const game = getCurrentGame();
   if (!game) {
     return res.json([]);
@@ -244,7 +246,7 @@ app.get('/teams', (req, res) => {
 });
 
 // Reset game (clear all data for current game, create new game)
-app.post('/reset', (req, res) => {
+apiRouter.post('/reset', (req, res) => {
   const { passcode } = req.body;
   
   if (!passcode || passcode.length !== 4) {
@@ -262,26 +264,8 @@ app.post('/reset', (req, res) => {
   res.json({ ok: true, gameId: newGame.lastInsertRowid, passcode });
 });
 
-// HTTPS setup
-const sslOptions = {
-  key: fs.readFileSync('/etc/letsencrypt/live/zipfx.net/privkey.pem'),
-  cert: fs.readFileSync('/etc/letsencrypt/live/zipfx.net/fullchain.pem')
-};
-
-https.createServer(sslOptions, app).listen(API_PORT, '0.0.0.0', () => {
-  console.log(`HTTPS API running on :${API_PORT}`);
-});
-
-const webApp = express();
-webApp.use(express.static(FRONTEND_DIR));
-webApp.use('/shared', express.static(SHARED_DIR));
-
-https.createServer(sslOptions, webApp).listen(WEB_PORT, '0.0.0.0', () => {
-  console.log(`Web app running on :${WEB_PORT} (HTTPS)`);
-});
-
 // Get all answers for all questions for the current game
-app.get('/all-answers', (req, res) => {
+apiRouter.get('/all-answers', (req, res) => {
   const game = getCurrentGame();
   if (!game) {
     return res.json([]);
@@ -297,3 +281,32 @@ app.get('/all-answers', (req, res) => {
   `).all(game.id);
   res.json({ teams, answers });
 });
+
+// Mount static files at root
+app.use(express.static(FRONTEND_DIR));
+app.use('/shared', express.static(SHARED_DIR));
+
+// Mount API routes under /api
+app.use('/api', apiRouter);
+
+// Start server (with conditional HTTPS support)
+const SSL_KEY_PATH = '/etc/letsencrypt/live/zipfx.net/privkey.pem';
+const SSL_CERT_PATH = '/etc/letsencrypt/live/zipfx.net/fullchain.pem';
+
+if (fs.existsSync(SSL_KEY_PATH) && fs.existsSync(SSL_CERT_PATH)) {
+  // Use HTTPS if SSL certificates are available
+  const sslOptions = {
+    key: fs.readFileSync(SSL_KEY_PATH),
+    cert: fs.readFileSync(SSL_CERT_PATH)
+  };
+  
+  https.createServer(sslOptions, app).listen(PORT, '0.0.0.0', () => {
+    console.log(`HTTPS server running on :${PORT}`);
+  });
+} else {
+  // Use HTTP for development or Cloud Run (which handles HTTPS termination)
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`HTTP server running on :${PORT}`);
+  });
+}
+

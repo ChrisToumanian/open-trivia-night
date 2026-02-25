@@ -1,4 +1,4 @@
-const API_BASE = 'https://zipfx.net:3000';
+const API_BASE = '/api';
 let maxQuestions = 20;
 
 // UX: auto-advance + only digits

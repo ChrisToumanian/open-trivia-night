@@ -1,4 +1,4 @@
-const API_BASE = 'https://zipfx.net:3000';
+const API_BASE = '/api';
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, function(m) {

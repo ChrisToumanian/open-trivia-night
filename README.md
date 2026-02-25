@@ -11,17 +11,19 @@ Trivia night, made effortless. This app bundles everything a host needs into a s
 
 ## ⚡ Quick start
 1. Install dependencies: `npm install`
-2. Start the server: `cd api && sudo node https-server.js`
+2. Start the server: `cd api && node https-server.js`
+   - The server runs on port 8080 by default
 3. Open the pages:
-	- https://your-server-ip:81/host.html
-	- https://your-server-ip:81/play.html
-	- https://your-server-ip:81/questions.html
+	- http://localhost:8080/host.html
+	- http://localhost:8080/play.html
+	- http://localhost:8080/questions.html
 
 ## How it works
 - Host opens `host.html` to run the game, review answers, and award points.
 - Teams open `play.html`, join with the passcode, and submit answers.
 - `questions.html` guides teams through each question.
-- The API runs on port 3000 and stores data in SQLite.
+- The API is available at `/api/*` and stores data in SQLite.
+- Static files (HTML, CSS, JS) and API endpoints all run on a single port.
 
 ## Previews
 
@@ -57,12 +59,13 @@ To require these checks on PRs:
 - styles.css — Shared styles
 
 ## ▶️ How to use it
-The Node server in `api/https-server.js` serves the frontend on port 81 and the API on port 3000.
+The Node server in `api/https-server.js` serves both the frontend and API on a single port (default 8080).
 
 ### Open the app
-- Host dashboard: https://your-server-ip:81/host.html
-- Team join page: https://your-server-ip:81/play.html
-- Questions view: https://your-server-ip:81/questions.html
+- Host dashboard: http://localhost:8080/host.html
+- Team join page: http://localhost:8080/play.html
+- Questions view: http://localhost:8080/questions.html
+- API endpoints: http://localhost:8080/api/*
 
 ### Typical game flow
 1. Host opens `host.html` and shares the 4-digit passcode.
@@ -128,14 +131,20 @@ To start the server, run:
 
 ```
 cd api
-sudo node https-server.js
+node https-server.js
+```
+
+Or with a custom port:
+
+```
+PORT=3000 node https-server.js
 ```
 
 Or, if you want to use `npm start`, add a start script to your `package.json`:
 
 ```
 "scripts": {
-	"start": "cd api && sudo node https-server.js"
+	"start": "cd api && node https-server.js"
 }
 ```
 
@@ -146,7 +155,7 @@ npm start
 ```
 
 ### 5. Access the application
-Open your browser and go to the addresses shown in the terminal (API on https port 3000, web on https port 81).
+Open your browser and go to http://localhost:8080 (or the port you specified via the PORT environment variable).
 
 ## 🧰 Manage with PM2
 ```
@@ -165,8 +174,8 @@ sqlite3 quiz.db
 ```
 
 ## Notes
-- Make sure you have the necessary SSL certificates if using HTTPS for the API.
-- For development, you may need to allow self-signed certificates in your browser.
+- The server uses HTTPS if SSL certificates are found at `/etc/letsencrypt/live/zipfx.net/` (useful for production). Otherwise, it runs on HTTP (ideal for development or Cloud Run where HTTPS termination is handled externally).
+- The server listens on `process.env.PORT` or defaults to 8080.
 - For any issues, check the terminal output for errors.
 
 ## Game configuration

@@ -1,4 +1,4 @@
-const API_BASE = 'https://zipfx.net:3000';
+const API_BASE = '/api';
 const SESSION_CHECK_MS = 5000;
 let roundMapCache = null;
 
