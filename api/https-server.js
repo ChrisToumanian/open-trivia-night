@@ -13,12 +13,29 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+console.log('Starting Open Trivia Night server...');
+console.log('Node version:', process.version);
+console.log('PORT:', process.env.PORT || 8080);
+
 const DATA_DIR = path.resolve(__dirname, '..', 'data');
 const DB_PATH = path.resolve(DATA_DIR, 'quiz.db');
+console.log('DATA_DIR:', DATA_DIR);
+console.log('DB_PATH:', DB_PATH);
+
 if (!fs.existsSync(DATA_DIR)) {
+  console.log('Creating data directory...');
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
-const db = new Database(DB_PATH);
+
+let db;
+try {
+  console.log('Initializing database...');
+  db = new Database(DB_PATH);
+  console.log('Database initialized successfully');
+} catch (err) {
+  console.error('Failed to initialize database:', err);
+  throw err;
+}
 
 // Load configuration
 let config = {};
@@ -293,20 +310,51 @@ app.use('/api', apiRouter);
 const SSL_KEY_PATH = '/etc/letsencrypt/live/zipfx.net/privkey.pem';
 const SSL_CERT_PATH = '/etc/letsencrypt/live/zipfx.net/fullchain.pem';
 
+console.log('Checking for SSL certificates...');
 if (fs.existsSync(SSL_KEY_PATH) && fs.existsSync(SSL_CERT_PATH)) {
   // Use HTTPS if SSL certificates are available
+  console.log('SSL certificates found, starting HTTPS server');
   const sslOptions = {
     key: fs.readFileSync(SSL_KEY_PATH),
     cert: fs.readFileSync(SSL_CERT_PATH)
   };
   
-  https.createServer(sslOptions, app).listen(PORT, '0.0.0.0', () => {
-    console.log(`HTTPS server running on :${PORT}`);
+  const server = https.createServer(sslOptions, app).listen(PORT, '0.0.0.0', () => {
+    console.log(`✓ HTTPS server running on port ${PORT}`);
+    console.log(`✓ Server is ready to accept connections`);
+  });
+  
+  server.on('error', (err) => {
+    console.error('HTTPS server error:', err);
+    process.exit(1);
   });
 } else {
   // Use HTTP for development or Cloud Run (which handles HTTPS termination)
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`HTTP server running on :${PORT}`);
+  console.log('No SSL certificates found, starting HTTP server');
+  console.log(`Attempting to bind to PORT: ${PORT} on 0.0.0.0`);
+  
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✓ HTTP server running on port ${PORT}`);
+    console.log(`✓ Server is ready to accept connections`);
+  });
+  
+  server.on('error', (err) => {
+    console.error('HTTP server error:', err);
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Port ${PORT} is already in use`);
+    }
+    process.exit(1);
   });
 }
+
+// Handle uncaught errors
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
 

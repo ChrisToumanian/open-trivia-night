@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Trivia night, made effortless",
   "main": "api/https-server.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "node api/https-server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
