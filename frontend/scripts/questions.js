@@ -151,6 +151,29 @@ async function validateGameSession() {
   return true;
 }
 
+async function validateTeamExists() {
+  const teamId = readTeamValue('teamId');
+  
+  if (!teamId) return true;
+
+  try {
+    const res = await fetch(API_BASE + '/team/' + teamId + '/exists', { cache: 'no-store' });
+    if (!res.ok) throw new Error('Failed to check team');
+    const data = await res.json();
+
+    if (!data.exists) {
+      clearTeamSession();
+      alert('Your team has been deleted by the host. Please join the game again.');
+      window.location.replace('play.html');
+      return false;
+    }
+  } catch (err) {
+    console.error('Error validating team existence:', err);
+  }
+
+  return true;
+}
+
 async function updatePageForQuestion(questionNum) {
   const teamNameDisplay = document.getElementById('teamNameDisplay');
   if (teamNameDisplay) {
@@ -172,6 +195,7 @@ async function updatePageForQuestion(questionNum) {
 
   // Validate game session
   validateGameSession();
+  await validateTeamExists();
 
   // Clear answer field for new question
   if (answerField) answerField.value = '';
@@ -501,7 +525,11 @@ if (submitBtn) submitBtn.addEventListener('click', async () => {
 
   // Periodic session validation (handles reset while user is idle)
   setInterval(validateGameSession, SESSION_CHECK_MS);
+  setInterval(validateTeamExists, SESSION_CHECK_MS);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') validateGameSession();
+    if (document.visibilityState === 'visible') {
+      validateGameSession();
+      validateTeamExists();
+    }
   });
 })();

@@ -42,7 +42,17 @@ function createTeamRow(team) {
   // Host's points selection now shows last saved value
   return `
       <tr data-team-id="${team.id}">
-        <td class="team">${escapeHtml(team.name)}</td>
+        <td class="team">
+          <div class="team-cell-wrapper">
+            <span class="team-name">${escapeHtml(team.name)}</span>
+            <div class="team-actions-menu">
+              <button class="team-actions-btn" data-team-id="${team.id}" title="Team options">⚙</button>
+              <div class="team-actions-dropdown" style="display: none;">
+                <button class="delete-team-option" data-team-id="${team.id}">🗑 Delete</button>
+              </div>
+            </div>
+          </div>
+        </td>
         <td class="answer">${escapeHtml(answer)}</td>
         <td class="bonus-answer">${escapeHtml(bonusAnswer)}</td>
         <td class="chosen-points">${formatPointsValue(chosenPoints)}</td>
@@ -226,6 +236,83 @@ document.addEventListener('click', function(e) {
   if (totalCell) totalCell.textContent = baseTotal + delta;
   dirtyPointTeams.add(teamId);
 });
+
+// Delegate delete team option clicks
+document.addEventListener('click', function(e) {
+  const deleteOption = e.target.closest('.delete-team-option');
+  if (!deleteOption) return;
+  
+  const teamId = Number(deleteOption.dataset.teamId);
+  if (!Number.isFinite(teamId)) return;
+  
+  const row = document.querySelector(`tr[data-team-id="${teamId}"]`);
+  if (!row) return;
+  
+  const teamName = row.querySelector('.team-name')?.textContent || 'Unknown Team';
+  
+  if (!confirm(`Are you sure you want to delete the team "${teamName}"? This action cannot be undone.`)) {
+    return;
+  }
+  
+  deleteTeam(teamId);
+});
+
+// Handle team actions menu toggle
+document.addEventListener('click', function(e) {
+  const actionBtn = e.target.closest('.team-actions-btn');
+  if (!actionBtn) return;
+  
+  e.stopPropagation();
+  
+  // Close all other dropdowns
+  document.querySelectorAll('.team-actions-dropdown').forEach(dropdown => {
+    if (dropdown !== actionBtn.nextElementSibling) {
+      dropdown.style.display = 'none';
+    }
+  });
+  
+  // Toggle current dropdown
+  const dropdown = actionBtn.nextElementSibling;
+  if (dropdown && dropdown.classList.contains('team-actions-dropdown')) {
+    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+  }
+});
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.team-actions-menu')) {
+    document.querySelectorAll('.team-actions-dropdown').forEach(dropdown => {
+      dropdown.style.display = 'none';
+    });
+  }
+});
+
+async function deleteTeam(teamId) {
+  try {
+    const res = await fetch(API_BASE + '/team/' + teamId, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!res.ok) {
+      throw new Error('Failed to delete team');
+    }
+    
+    // Remove from local data structures
+    answersMap = Object.fromEntries(
+      Object.entries(answersMap).filter(([key, _]) => Number(key) !== teamId)
+    );
+    teamsList = teamsList.filter(team => team.id !== teamId);
+    
+    // Recalculate totals after deletion
+    calculateTotals();
+    
+    // Re-render the team rows
+    await loadTeams();
+  } catch (err) {
+    alert('Error deleting team: ' + err.message);
+  }
+}
 
 // Initial load and question navigation
 const QUESTION_STORAGE_KEY = 'controlpanel.currentQuestion';

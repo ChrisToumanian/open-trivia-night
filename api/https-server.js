@@ -267,6 +267,22 @@ apiRouter.get('/teams', (req, res) => {
   res.json(rows);
 });
 
+// Check if a team still exists (for players to verify they haven't been deleted)
+apiRouter.get('/team/:teamId/exists', (req, res) => {
+  const teamId = Number(req.params.teamId);
+  if (!Number.isFinite(teamId) || teamId < 1) {
+    return res.status(400).json({ error: 'Invalid team ID' });
+  }
+  
+  const game = getCurrentGame();
+  if (!game) {
+    return res.json({ exists: false });
+  }
+  
+  const team = db.prepare('SELECT id FROM teams WHERE id = ? AND game_id = ?').get(teamId, game.id);
+  res.json({ exists: !!team });
+});
+
 // Reset game (clear all data for current game, create new game)
 apiRouter.post('/reset', (req, res) => {
   const { passcode } = req.body;
@@ -302,6 +318,33 @@ apiRouter.get('/all-answers', (req, res) => {
     WHERE teams.game_id = ?
   `).all(game.id);
   res.json({ teams, answers });
+});
+
+// Delete team and associated answers
+apiRouter.delete('/team/:teamId', (req, res) => {
+  const teamId = Number(req.params.teamId);
+  if (!Number.isFinite(teamId) || teamId < 1) {
+    return res.status(400).json({ error: 'Invalid team ID' });
+  }
+  
+  const game = getCurrentGame();
+  if (!game) {
+    return res.status(400).json({ error: 'No active game' });
+  }
+  
+  // Verify team belongs to current game
+  const team = db.prepare('SELECT id FROM teams WHERE id = ? AND game_id = ?').get(teamId, game.id);
+  if (!team) {
+    return res.status(404).json({ error: 'Team not found' });
+  }
+  
+  // Delete answers for this team
+  db.prepare('DELETE FROM answers WHERE team_id = ?').run(teamId);
+  
+  // Delete team
+  db.prepare('DELETE FROM teams WHERE id = ?').run(teamId);
+  
+  res.json({ ok: true });
 });
 
 // Mount static files at root

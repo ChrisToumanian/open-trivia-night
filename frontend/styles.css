@@ -682,7 +682,90 @@ tbody tr{
 .team{
   font-weight:600;
   font-size:15px;
-  padding-top: 10px;
+  padding-top: 7px;
+  position: relative;
+}
+
+.team-cell-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  position: relative;
+}
+
+.team-name {
+  flex: 1;
+}
+
+.team-actions-menu {
+  position: relative;
+  flex-shrink: 0;
+  margin-top: -2px;
+}
+
+.team-actions-btn {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease, color 0.15s ease;
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 24px;
+  font-weight: bold;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.team-actions-btn:hover {
+  color: #666;
+}
+
+.team-actions-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 120px;
+}
+
+.delete-team-option {
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: #c82020;
+  font-weight: 500;
+  font-size: 14px;
+  transition: background-color 0.15s ease;
+  display: block;
+}
+
+.delete-team-option:hover {
+  background-color: #fff5f5;
+}
+
+.delete-team-option:first-child {
+  border-radius: 7px 7px 0 0;
+}
+
+.delete-team-option:last-child {
+  border-radius: 0 0 7px 7px;
+}
+
+tbody tr:hover .team-actions-btn {
+  opacity: 1;
+  visibility: visible;
 }
 
 .answer{
@@ -718,7 +801,7 @@ tbody tr{
   font-weight:700;
   font-size:15px;
   text-align:center;
-  padding-top: 10px;
+  margin-top: 2px;
 }
 
 .footerbar{
