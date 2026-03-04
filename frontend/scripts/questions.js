@@ -28,6 +28,7 @@ currentQuestion = parseInt(currentQuestion, 10);
 let maxQuestions = 21;
 let questionConfig = {};
 let hasResetAlerted = false;
+let hasTeamDeletedAlerted = false;
 
 const submitBtn = document.querySelector('.btn');
 const submitLabel = submitBtn?.querySelector('.btn__label') || submitBtn;
@@ -121,6 +122,9 @@ function clearTeamSession() {
 }
 
 async function validateGameSession() {
+  // Skip if already alerted
+  if (hasResetAlerted) return true;
+  
   const teamId = readTeamValue('teamId');
   const storedGameId = readTeamValue('gameId');
 
@@ -136,11 +140,10 @@ async function validateGameSession() {
     const currentGame = await res.json();
 
     if (!currentGame || currentGame.id !== parseInt(storedGameId, 10)) {
+      console.log('Game reset detected!');
+      hasResetAlerted = true;
       clearTeamSession();
-      if (!hasResetAlerted) {
-        hasResetAlerted = true;
-        alert('The game has been reset. Please join again.');
-      }
+      alert('The game has been reset. Please join again.');
       window.location.replace('play.html');
       return false;
     }
@@ -152,16 +155,24 @@ async function validateGameSession() {
 }
 
 async function validateTeamExists() {
+  // If game was already reset, don't check team existence (teams are deleted on reset)
+  if (hasResetAlerted) return true;
+  
+  // Skip if already alerted
+  if (hasTeamDeletedAlerted) return false;
+  
   const teamId = readTeamValue('teamId');
   
   if (!teamId) return true;
-
+  
   try {
     const res = await fetch(API_BASE + '/team/' + teamId + '/exists', { cache: 'no-store' });
     if (!res.ok) throw new Error('Failed to check team');
     const data = await res.json();
 
     if (!data.exists) {
+      console.log('Team deletion detected!');
+      hasTeamDeletedAlerted = true;
       clearTeamSession();
       alert('Your team has been deleted by the host. Please join the game again.');
       window.location.replace('play.html');
@@ -195,7 +206,6 @@ async function updatePageForQuestion(questionNum) {
 
   // Validate game session
   validateGameSession();
-  await validateTeamExists();
 
   // Clear answer field for new question
   if (answerField) answerField.value = '';

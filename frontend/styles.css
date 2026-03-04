@@ -683,7 +683,25 @@ tbody tr{
   font-weight:600;
   font-size:15px;
   padding-top: 7px;
-  position: relative;
+}
+
+.leaderboard-team {
+  font-weight:600;
+  font-size:15px;
+  padding-top: 9px;
+}
+
+.leaderboard-rank {
+  font-weight: 700;
+  font-size: 19px;
+  color: #8a8a8a;
+  padding-top: 7px;
+  padding-top: 11px;
+}
+
+.leaderboard-total {
+  text-align: left;
+  padding-top: 11px;
 }
 
 .team-cell-wrapper {
@@ -1080,10 +1098,9 @@ font-family:var(--font-sans);
 .controlpanel-page td.bonus-answer {
   word-wrap: break-word;
   white-space: pre-wrap;
-  min-height: 60px;
-  padding: 12px 8px;
-  vertical-align: top;
+  vertical-align: center;
   overflow-wrap: break-word;
+  padding: 13px 10px 4px;
 }
 
 .controlpanel-page td.bonus-answer {
@@ -1112,11 +1129,11 @@ font-family:var(--font-sans);
   font-weight: 600;
 }
 
-.leaderboard-page td.total {
+.leaderboard-page td.leaderboard-total {
   text-align: left;
 }
 
-.leaderboard-page td.rank {
+.leaderboard-page td.leaderboard-rank {
   font-weight: 700;
   font-size: 19px;
   color: #8a8a8a;
@@ -1128,7 +1145,7 @@ font-family:var(--font-sans);
   color: #fff;
 }
 
-.leaderboard-page tr.is-top td.rank {
+.leaderboard-page tr.is-top td.leaderboard-rank {
   font-weight: 800;
   color: #fff;
 }

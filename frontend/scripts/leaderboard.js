@@ -22,9 +22,9 @@ function createLeaderboardRow(team, rank) {
   const rowClass = rank === 1 ? 'is-top' : '';
   return `
       <tr data-team-id="${team.id}" class="${rowClass}">
-        <td class="rank">${rank}</td>
-        <td class="team">${escapeHtml(team.name)}</td>
-        <td class="total">${total}</td>
+        <td class="leaderboard-rank">${rank}</td>
+        <td class="leaderboard-team">${escapeHtml(team.name)}</td>
+        <td class="leaderboard-total">${total}</td>
       </tr>
     `;
 }

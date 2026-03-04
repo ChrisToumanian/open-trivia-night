@@ -274,7 +274,7 @@ document.addEventListener('click', function(e) {
   // Toggle current dropdown
   const dropdown = actionBtn.nextElementSibling;
   if (dropdown && dropdown.classList.contains('team-actions-dropdown')) {
-    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+    dropdown.style.display = dropdown.style.display === 'none' || !dropdown.style.display ? 'block' : 'none';
   }
 });
 
