@@ -231,6 +231,27 @@ gcloud run deploy open-trivia-night \
   --allow-unauthenticated
 ```
 
+## Redeploy new changes from repository from Cloud Shell
+```
+cd open-trivia-night
+
+git pull origin main
+
+gcloud run deploy open-trivia-night \
+  --source . \
+  --region us-west1 \
+  --allow-unauthenticated
+```
+
+## Reset repository
+```
+git fetch origin
+
+git reset --hard origin/main
+
+git clean -fd
+```
+
 **Notes:**
 - The server runs on PORT 8080 (set by Cloud Run automatically)
 - No SSL certificates needed (Cloud Run provides HTTPS)
