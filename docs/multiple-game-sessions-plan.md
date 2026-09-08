@@ -3,6 +3,15 @@
 Branch: `codex/multiple-game-sessions`  
 Baseline reviewed and tested: September 8, 2026.
 
+Implementation status: completed locally on September 8, 2026. The session API,
+transactional database migration/backup, host menu and dialogs, scoped player
+storage, and session leaderboards are implemented. Nine automated tests and
+JavaScript/HTML checks pass. Browser checks covered two simultaneous games,
+independent scoring/categories, switching with pending scores, save failure and
+retry, delayed reads, rename, reload, reset, deletion, the empty state, and a
+390-pixel host viewport. See the README for current launch/testing instructions;
+the baseline notes below describe the earlier version.
+
 ## Intended behavior
 
 Run several named sessions at once, each with its own unique four-digit PIN. A new bar at the top of `host.html`, above the existing question controls, has a session dropdown on the left. Its menu lists sessions by name and PIN and provides Create session, Rename session, and Delete session actions. The selected session's PIN remains clearly visible.

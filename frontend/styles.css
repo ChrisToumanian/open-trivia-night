@@ -847,7 +847,8 @@ tbody tr:hover .team-actions-btn {
 
 /* Control panel specific overrides: let the .card fill the container
   and keep footer nav buttons small (only for host.html). */
-.container > .card {
+.container > .card,
+#gamePanel > .card {
   width: 100%;
   max-width: 100%;
 }
@@ -1088,6 +1089,8 @@ font-family:var(--font-sans);
 
 .controlpanel-page .container {
   flex: 1 0 auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .controlpanel-page table {
@@ -1202,3 +1205,45 @@ font-family:var(--font-sans);
   100%{ opacity: 0.5; border-radius: 16px; transform: translate(-50%, -50%) scaleX(1) scaleY(1); }
 }
 
+
+/* Session controls */
+[hidden] { display: none !important; }
+.session-bar { position: relative; z-index: 110; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 28px; border-bottom: 1px solid var(--line); background: #fffaf0; }
+.session-picker { position: relative; min-width: 0; }
+.session-toggle { display: flex; gap: 24px; align-items: center; justify-content: space-between; max-width: min(65vw, 420px); padding: 10px 16px; border: 1px solid var(--gold-2); border-radius: 10px; background: white; color: var(--ink); font: 700 1rem var(--font-sans); cursor: pointer; }
+#sessionName { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.session-pin { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .85rem; white-space: nowrap; }
+.session-pin strong { color: var(--ink); font-size: 1.4rem; letter-spacing: .18em; font-variant-numeric: tabular-nums; }
+.session-menu { position: absolute; left: 0; top: calc(100% + 8px); width: min(360px, calc(100vw - 32px)); max-height: 65vh; overflow: auto; background: white; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-soft); padding: 6px; }
+.session-menu button { width: 100%; display: flex; justify-content: space-between; gap: 16px; text-align: left; border: 0; background: transparent; border-radius: 6px; padding: 12px; color: var(--ink); font: 600 .95rem var(--font-sans); cursor: pointer; }
+.session-menu button span { overflow-wrap: anywhere; }
+.session-menu button small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.session-menu button:hover, .session-menu button:focus-visible { background: #faf2df; }
+.session-menu [aria-checked="true"] { background: #fff8e8; }
+.session-menu [role="separator"] { border-top: 1px solid var(--line); margin: 6px; }
+.session-menu button:disabled, .session-toggle:disabled { opacity: .5; cursor: default; }
+button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid #9a6b22; outline-offset: 3px; }
+.session-menu .danger-text, .danger-text { color: #a32020; }
+.host-status { min-height: 1.5em; margin: 0 0 12px; color: var(--muted); }
+.host-status.is-error, .dialog-error { color: #a32020; }
+.session-empty { padding: 42px 20px; text-align: center; border: 1px dashed var(--gold-2); border-radius: 16px; }
+.session-dialog { width: min(460px, calc(100vw - 32px)); border: 1px solid var(--line); border-radius: 18px; padding: 28px; color: var(--ink); box-shadow: var(--shadow); }
+.session-dialog::backdrop { background: rgba(20, 15, 5, .4); }
+.session-dialog h2 { margin-top: 0; }
+.session-dialog p { line-height: 1.5; overflow-wrap: anywhere; }
+.dialog-field { display: flex; flex-direction: column; gap: 6px; margin: 18px 0; font-weight: 700; }
+.dialog-field input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--line); font: inherit; }
+.dialog-actions { display: flex; gap: 12px; justify-content: flex-end; }
+.dialog-actions .btn { font-size: .95rem; padding: 10px 16px; }
+#gamePanel .card { overflow-x: auto; }
+#gamePanel .team-actions-btn { opacity: .65; visibility: visible; }
+.session-caption { text-align: center; color: var(--muted); margin: 8px 0; }
+@media (max-width: 600px) { .session-bar { padding: 12px 16px; gap: 8px; } .session-toggle { max-width: 60vw; padding: 9px 10px; gap: 10px; } .session-pin { gap: 5px; } .session-pin strong { font-size: 1.15rem; letter-spacing: .08em; } .session-dialog { padding: 20px; } }
+@media (max-width: 800px) {
+  .controlpanel-page .container { padding-left: 16px; padding-right: 16px; }
+  .controlpanel-page .topbar, .controlpanel-page .question-block { flex-wrap: wrap; gap: 12px; }
+  .controlpanel-page .question-block { min-width: 0; }
+  .controlpanel-page .category-select-wrap { max-width: 100%; }
+  .controlpanel-page .category-select { max-width: 100%; }
+  #gamePanel table { min-width: 900px; }
+}

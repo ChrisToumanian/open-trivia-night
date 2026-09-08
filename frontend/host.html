@@ -5,16 +5,23 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="icon" href="images/icon.png" type="image">
+<link rel="stylesheet" href="styles.css">
 </head>
 
-<link rel="stylesheet" href="styles.css">
-
 <body class="controlpanel-page">
-
-
+<nav class="session-bar" aria-label="Game sessions">
+  <div class="session-picker">
+    <button id="sessionToggle" class="session-toggle" aria-haspopup="menu" aria-expanded="false" aria-controls="sessionMenu"><span id="sessionName">Loading sessions…</span><span aria-hidden="true">▾</span></button>
+    <div id="sessionMenu" class="session-menu" role="menu" aria-label="Sessions" hidden></div>
+  </div>
+  <div class="session-pin">PIN <strong id="sessionPin">—</strong></div>
+</nav>
 <div id="header"></div>
 
 <div class="container">
+  <p id="hostStatus" class="host-status" role="status" aria-live="polite"></p>
+  <div id="emptySession" class="session-empty" hidden><h2>No session selected</h2><p>Create a session or choose one from the menu to start hosting.</p><button class="btn" id="emptyCreate">Create session</button></div>
+  <div id="gamePanel" inert>
 
   <div class="topbar">
     <div class="question-block">
@@ -29,13 +36,10 @@
       </div>
       <div id="question-header" class="question-header">Question 1</div>
       <div class="category-select-wrap">
-        <select id="categorySelect" class="category-select"></select>
+        <select id="categorySelect" class="category-select" aria-label="Question category"></select>
       </div>
     </div>
     <div class="controls-top">
-      <label class="passcode-label">Passcode
-        <input class="passcode-input" type="text" maxlength="4" inputmode="numeric" placeholder="0000" />
-      </label>
       <button class="btn reset-game">Reset Game</button>
       <a class="btn leaderboard-link" href="leaderboard.html" aria-label="Leaderboard">
         <svg class="leaderboard-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -62,11 +66,22 @@
       </tbody>
     </table>
   </div>
-
+  </div>
 </div>
 
+<dialog id="sessionDialog" class="session-dialog" aria-labelledby="dialogTitle">
+  <form id="sessionForm">
+    <h2 id="dialogTitle">Create session</h2>
+    <p id="dialogDescription"></p>
+    <label id="nameLabel" class="dialog-field">Session name<input id="sessionNameInput" maxlength="80" autocomplete="off" required></label>
+    <label id="pinLabel" class="dialog-field">4-digit PIN<input id="sessionPinInput" type="text" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required></label>
+    <p id="dialogError" class="dialog-error" role="alert"></p>
+    <div class="dialog-actions"><button type="button" class="btn" id="dialogCancel">Cancel</button><button class="btn" id="dialogSubmit" type="submit">Create session</button></div>
+  </form>
+</dialog>
 <div id="footer"></div>
 <script src="scripts/brand.js"></script>
+<script src="scripts/session.js"></script>
 <script src="scripts/host.js"></script>
 
 </body>
