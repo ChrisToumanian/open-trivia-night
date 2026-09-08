@@ -1,5 +1,4 @@
 const API_BASE = '/api';
-let maxQuestions = 20;
 
 // UX: auto-advance + only digits
 const digits = Array.from(document.querySelectorAll('.digit'));
@@ -15,66 +14,22 @@ function updateJoinDisabled() {
   joinBtn.disabled = !(name && code.length === 4);
 }
 
-function readTeamValue(key) {
-  return localStorage.getItem(key) || sessionStorage.getItem(key);
-}
-
-function clearTeamSession() {
-  localStorage.removeItem('teamId');
-  localStorage.removeItem('teamName');
-  localStorage.removeItem('gameId');
-  sessionStorage.removeItem('teamId');
-  sessionStorage.removeItem('teamName');
-  sessionStorage.removeItem('gameId');
-}
-
-async function redirectIfActiveTeam() {
-  const teamId = readTeamValue('teamId');
-  const storedGameId = readTeamValue('gameId');
-  if (!teamId || !storedGameId) return;
-
+// A plain join URL always permits joining another PIN. An explicit session
+// link can resume that session without affecting any other open player tab.
+async function resumeSession() {
+  const id = TriviaSession.id();
+  const team = TriviaSession.membership(id);
+  if (!team) return;
   try {
-    const configRes = await fetch(API_BASE + '/config', { cache: 'no-store' });
-    if (configRes.ok) {
-      const cfg = await configRes.json();
-      if (Number.isFinite(cfg.maxQuestions) && cfg.maxQuestions > 0) {
-        maxQuestions = cfg.maxQuestions;
-      }
-    }
-    const gameRes = await fetch(API_BASE + '/current-game', { cache: 'no-store' });
-    if (!gameRes.ok) throw new Error('Failed to check game');
-    const currentGame = await gameRes.json();
-    if (!currentGame || currentGame.id !== parseInt(storedGameId, 10)) {
-      clearTeamSession();
-      return;
-    }
-
-    const answersRes = await fetch(API_BASE + '/all-answers', { cache: 'no-store' });
-    if (!answersRes.ok) throw new Error('Failed to load answers');
-    const data = await answersRes.json();
-    const answers = Array.isArray(data.answers) ? data.answers : [];
-    const answered = new Set();
-    answers.forEach(ans => {
-      if (ans.team_id !== parseInt(teamId, 10)) return;
-      const qNum = Number(ans.question_number);
-      if (Number.isFinite(qNum)) answered.add(qNum);
-    });
-
-    let nextUnanswered = 1;
-    for (let i = 1; i <= maxQuestions; i += 1) {
-      if (!answered.has(i)) {
-        nextUnanswered = i;
-        break;
-      }
-    }
-
-    window.location.replace(`questions.html?q=${nextUnanswered}`);
-  } catch (err) {
-    console.error('Error checking active team session:', err);
+    const valid = await TriviaSession.request(TriviaSession.base(id) + '/team/' + team.teamId + '/exists');
+    if (!valid.exists) { TriviaSession.clear(id); return; }
+    TriviaSession.save(team);
+    window.location.replace(TriviaSession.url('questions.html', id));
+  } catch (error) {
+    if (error.status === 404) TriviaSession.clear(id);
   }
 }
-
-redirectIfActiveTeam();
+resumeSession();
 
 teamName.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
@@ -152,18 +107,8 @@ joinBtn.addEventListener('click', async () => {
     }
     const data = await res.json();
 
-    // Get current game ID
-    const gameRes = await fetch(API_BASE + '/current-game');
-    const gameData = await gameRes.json();
-
-    localStorage.setItem('teamId', data.teamId);
-    localStorage.setItem('teamName', name);
-    localStorage.setItem('gameId', gameData.id);
-    // Backward-compat for cached clients still reading sessionStorage
-    sessionStorage.setItem('teamId', data.teamId);
-    sessionStorage.setItem('teamName', name);
-    sessionStorage.setItem('gameId', gameData.id);
-    window.location.href = 'questions.html';
+    TriviaSession.save({ teamId: data.teamId, gameId: data.gameId, teamName: name });
+    window.location.href = TriviaSession.url('questions.html', data.gameId);
   } catch (err) {
     alert(`Error joining game: ${err.message}`);
   } finally {
