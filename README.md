@@ -2,6 +2,10 @@
 
 Run trivia games from a browser: hosts manage questions and scoring, and teams join with a four-digit PIN. One Node.js server serves the web pages and API, with game data stored in SQLite. Multiple named sessions can run at the same time, each with its own PIN, teams, answers, scores, and leaderboard.
 
+![Host dashboard showing Thursday Trivia, its PIN, submitted answers, and team scores](shared/images/previews/host-dashboard.jpg)
+
+*The host dashboard keeps session selection, question categories, answers, and scoring together. Screenshots use the default branding and fictional demo games.*
+
 ## Choose an installation
 
 | Where you want to run it | Instructions | Game storage |
@@ -63,6 +67,12 @@ The included Windows launcher is another option after dependencies are installed
 
 Open the host dashboard, then open the join page in another tab and join with the displayed PIN. Submit an answer and check that it appears on the host dashboard. Joining takes players to the questions view; use the host's leaderboard link to view scores for the selected session.
 
+<p align="center">
+  <img src="shared/images/previews/join-game.jpg" alt="Team join page with a sample team name and the four-digit PIN 2468" width="420" />
+</p>
+
+*Teams enter a name and the PIN shown on their host's dashboard, then select Play.*
+
 To play from phones or another computer on the same network, replace `localhost` with the server computer's LAN IP address, for example `http://192.168.1.50:8080/play.html`. Allow the app's port through the computer's firewall on that network. `localhost` on a phone refers to the phone itself.
 
 ### Use a different port
@@ -97,6 +107,10 @@ A fresh database starts with **Trivia Night**, PIN **0000**. An existing databas
 3. Share that session's PIN and the player join URL with its teams.
 4. Select another session in the dropdown to manage a different game. Scores save before switching, and each session remembers the host's last-viewed question.
 
+![Session dropdown showing three separate games with unique PINs and create, rename, and delete actions](shared/images/previews/session-menu.jpg)
+
+*The checked game is selected in this host tab. Each game has its own name and PIN.*
+
 Teams, answers, scores, selected question categories, and leaderboards stay separate. The question/round configuration and available category catalog are shared across sessions. You can also open each session's host URL, including its `?sessionId=...`, in a separate tab. Player tabs keep their own session membership.
 
 | Action | Effect |
@@ -106,6 +120,26 @@ Teams, answers, scores, selected question categories, and leaderboards stay sepa
 | **Delete session** | Removes the selected session and its game data after confirmation. Other sessions continue. |
 
 Players affected by a reset or deletion return to the join page. A reset session's players must join again. To enter a different game at any time, open `play.html` and use its PIN.
+
+## Playing and scoring
+
+### Submit answers
+
+The host presents each question. Teams use the questions page to enter their answer, add a bonus answer when enabled, choose from the available point values, and select **Submit Answer**. The session name and team name identify which game they are playing.
+
+<p align="center">
+  <img src="shared/images/previews/player-question.jpg" alt="Player answer form for Thursday Trivia showing the Astronomy category, answer and bonus fields, and five points selected" width="440" />
+</p>
+
+*The player view shows the current question, category, and available points. Question and round rules come from the shared game configuration.*
+
+### Award points and view standings
+
+On the host dashboard, review each team's answers and use the **+** and **−** controls to award points. The **Total** column adds the team's awarded points across questions. Open the crown-shaped **Leaderboard** link to show the selected session's standings; its return link goes back to that session's host dashboard.
+
+![Thursday Trivia leaderboard ranking four example teams by their total awarded points](shared/images/previews/leaderboard.jpg)
+
+*Each session has its own leaderboard, with the leading team highlighted.*
 
 ## Linux server with PM2
 
@@ -304,17 +338,3 @@ These tests do not change your running game's database. See [the recorded load-t
 | A phone cannot connect | Use the server's LAN IP, keep both devices on a reachable network, and check the firewall and port. |
 | Database cannot be opened or written | Check `DATA_DIR`, directory ownership, and the service account's write permissions. |
 | Games disappear after a container replacement | Reuse the same persistent volume. On Cloud Run, review its instance-local storage limitations above. |
-
-## Previews
-
-<table>
-  <tbody>
-    <tr>
-      <td><img src="shared/images/previews/join_game_preview.jpg" alt="Join Game preview" width="260" /></td>
-      <td><img src="shared/images/previews/questions_preview.jpg" alt="Questions preview" width="260" /></td>
-    </tr>
-    <tr>
-      <td colspan="2" align="center"><img src="shared/images/previews/control_panel_preview.jpg" alt="Control Panel preview" width="520" /></td>
-    </tr>
-  </tbody>
-</table>
