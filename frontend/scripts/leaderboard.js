@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+const gameId = TriviaSession.id();
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, function(m) {
@@ -30,15 +30,12 @@ function createLeaderboardRow(team, rank) {
 }
 
 async function loadAllAnswersAndTeams() {
-  const ansRes = await fetch(API_BASE + '/all-answers');
-  if (!ansRes.ok) throw new Error('Failed to load all answers');
-  const ansData = await ansRes.json();
-  const allAnswers = ansData.answers || [];
-  const teamRes = await fetch(API_BASE + '/teams');
-  if (!teamRes.ok) throw new Error('Failed to load teams');
-  const teamData = await teamRes.json();
-  teamsList = teamData || [];
-  calculateTotals(allAnswers);
+  if (!gameId) throw new Error('Choose a session from the host dashboard.');
+  const [game, data] = await Promise.all([TriviaSession.request(TriviaSession.base(gameId)), TriviaSession.request(TriviaSession.base(gameId) + '/all-answers')]);
+  document.querySelector('.question-header').textContent = game.name + ' — Leaderboard';
+  document.querySelector('.leaderboard-link').href = TriviaSession.url('host.html', gameId);
+  teamsList = data.teams;
+  calculateTotals(data.answers);
 }
 
 async function loadLeaderboard() {
@@ -72,8 +69,11 @@ async function loadLeaderboard() {
     tbody.innerHTML = teamsWithRanks.map(({ team, rank }) => createLeaderboardRow(team, rank)).join('');
   } catch (err) {
     console.error(err);
-    tbody.innerHTML = '<tr><td colspan="3">Failed to load leaderboard</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3">' + escapeHtml(err.message) + '</td></tr>';
   }
 }
 
 loadLeaderboard();
+
+let refreshing = false;
+setInterval(async () => { if (refreshing || document.visibilityState !== "visible") return; refreshing = true; try { await loadLeaderboard(); } finally { refreshing = false; } }, 5000);

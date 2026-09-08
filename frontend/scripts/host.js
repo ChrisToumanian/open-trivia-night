@@ -1,588 +1,302 @@
-const API_BASE = '/api';
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, function(m) {
-    return ({'&':'&amp;','<':'&lt;','>':'&gt;', '"':'&quot;', "'":'&#39;'})[m];
-  });
-}
-
-function formatPointsValue(value) {
-  return Number.isInteger(value) ? String(value) : String(value);
-}
-
-// Get current question number from the question header
-function getCurrentQuestion() {
-  const headerText = document.querySelector('.question-header').textContent.trim();
-  return parseInt(headerText.split(' ')[1]) || 1;
-}
-
-// Store answers by team ID for quick lookup
-let answersMap = {};
-let allAnswers = [];
-let teamsList = [];
-let totalPointsMap = {};
-const dirtyPointTeams = new Set();
-let isLiveRefreshing = false;
-const LIVE_REFRESH_MS = 5000;
-
-function calculateTotals() {
-  totalPointsMap = {};
-  allAnswers.forEach(ans => {
-    if (!totalPointsMap[ans.team_id]) totalPointsMap[ans.team_id] = 0;
-    totalPointsMap[ans.team_id] += ans.awarded_points || 0;
-  });
-}
-
-function createTeamRow(team) {
-  const answer = answersMap[team.id]?.answer || '';
-  const bonusAnswer = answersMap[team.id]?.bonus_answer || '';
-  const chosenPoints = answersMap[team.id]?.chosen_points ?? 0;
-  const awardedPoints = answersMap[team.id]?.awarded_points ?? 0;
-  const total = totalPointsMap[team.id] ?? 0;
-  // Host's points selection now shows last saved value
-  return `
-      <tr data-team-id="${team.id}">
-        <td class="team">
-          <div class="team-cell-wrapper">
-            <span class="team-name">${escapeHtml(team.name)}</span>
-            <div class="team-actions-menu">
-              <button class="team-actions-btn" data-team-id="${team.id}" title="Team options">⚙</button>
-              <div class="team-actions-dropdown" style="display: none;">
-                <button class="delete-team-option" data-team-id="${team.id}">🗑 Delete</button>
-              </div>
-            </div>
-          </div>
-        </td>
-        <td class="answer">${escapeHtml(answer)}</td>
-        <td class="bonus-answer">${escapeHtml(bonusAnswer)}</td>
-        <td class="chosen-points">${formatPointsValue(chosenPoints)}</td>
-        <td>
-          <div class="points-controls">
-            <button class="points-btn minus">&minus;</button>
-            <span class="points-value">${formatPointsValue(awardedPoints)}</span>
-            <button class="points-btn plus">+</button>
-          </div>
-        </td>
-        <td class="total">${total}</td>
-      </tr>
-    `;
-}
-
-async function loadAllAnswersAndTeams() {
-  // Fetch all answers
-  const ansRes = await fetch(API_BASE + '/all-answers');
-  if (!ansRes.ok) throw new Error('Failed to load all answers');
-  const ansData = await ansRes.json();
-  allAnswers = ansData.answers || [];
-  // Fetch all teams (ensures teams with no answers are included)
-  const teamRes = await fetch(API_BASE + '/teams');
-  if (!teamRes.ok) throw new Error('Failed to load teams');
-  const teamData = await teamRes.json();
-  // Use the full team list
-  teamsList = teamData || [];
-  calculateTotals();
-}
-
-function snapshotDirtyPoints() {
-  const snapshot = new Map();
-  dirtyPointTeams.forEach((teamId) => {
-    const row = document.querySelector(`tr[data-team-id="${teamId}"]`);
-    if (!row) return;
-    const pointsValue = row.querySelector('.points-value');
-    if (!pointsValue) return;
-    const totalCell = row.querySelector('.total');
-    snapshot.set(teamId, {
-      pointsValue: pointsValue.textContent,
-      total: totalCell ? totalCell.textContent : null
-    });
-  });
-  return snapshot;
-}
-
-function restoreDirtyPoints(snapshot) {
-  snapshot.forEach((data, teamId) => {
-    const row = document.querySelector(`tr[data-team-id="${teamId}"]`);
-    if (!row) return;
-    const pointsValue = row.querySelector('.points-value');
-    if (pointsValue) pointsValue.textContent = data.pointsValue;
-    const totalCell = row.querySelector('.total');
-    if (totalCell && data.total !== null) totalCell.textContent = data.total;
-  });
-}
-
-async function loadAnswers(options = {}) {
-  const preserveDirty = Boolean(options.preserveDirty);
-  const dirtySnapshot = preserveDirty ? snapshotDirtyPoints() : null;
-  const question = getCurrentQuestion();
-  try {
-    await loadAllAnswersAndTeams();
-    // Build a map of answers by team ID for the current question
-    answersMap = {};
-    allAnswers.filter(ans => ans.question_number === question).forEach(ans => {
-      answersMap[ans.team_id] = ans;
-    });
-    await loadTeams();
-    if (preserveDirty && dirtySnapshot) {
-      restoreDirtyPoints(dirtySnapshot);
-    }
-  } catch (err) {
-    console.error('Error loading answers:', err);
-    await loadTeams();
-  }
-}
-
-async function loadTeams() {
-  const tbody = document.getElementById('teams-body');
-  tbody.innerHTML = '<tr><td colspan="4">Loading teams...</td></tr>';
-  try {
-    // Use teamsList from loadAllAnswersAndTeams
-    if (!teamsList || teamsList.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4">No teams yet</td></tr>';
-      return;
-    }
-    tbody.innerHTML = teamsList.map(createTeamRow).join('');
-  } catch (err) {
-    console.error(err);
-    tbody.innerHTML = '<tr><td colspan="4">Failed to load teams</td></tr>';
-  }
-}
-
-// Reset Game button - requires passcode
-document.querySelector('.reset-game').addEventListener('click', async () => {
-  const passInput = document.querySelector('.passcode-input');
-  const passcode = (passInput.value || '').trim();
-  if (!passcode || passcode.length !== 4) {
-    alert('Please enter a 4-digit passcode.');
-    passInput.focus();
-    return;
-  }
-  if (!confirm(`Reset game with passcode ${passcode}? This will clear all teams and answers.`)) {
-    return;
-  }
-  try {
-    const res = await fetch(API_BASE + '/reset', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ passcode })
-    });
-    if (!res.ok) throw new Error('Failed to reset game');
-    // After reset, fetch the new passcode and autofill
-    const gameRes = await fetch(API_BASE + '/current-game');
-    let newPasscode = passcode;
-    if (gameRes.ok) {
-      const game = await gameRes.json();
-      if (game && game.passcode) {
-        newPasscode = game.passcode;
-      }
-    }
-    passInput.value = newPasscode;
-    passInput.style.color = '#999';
-    answersMap = {};
-    currentQuestion = 1;
-    questionMetaCache.clear();
-    questionLabelCache.clear();
-    await loadTeams();
-    await loadAnswers();
-    await updatePill();
-    // Optionally refresh the page for full reset
-    // location.reload();
-    alert('Game reset. New passcode set: ' + newPasscode);
-  } catch (err) {
-    alert(`Error resetting game: ${err.message}`);
-  }
-});
-
-// Delegate points button clicks
-document.addEventListener('click', function(e) {
-  const btn = e.target.closest('.points-btn');
-  if (!btn) return;
-  const controlsDiv = btn.closest('.points-controls');
-  const pointsValue = controlsDiv.querySelector('.points-value');
-  let current = Number.parseFloat(pointsValue.textContent) || 0;
-  
-  // Check if half points are allowed for the current question
-  const currentQuestionNum = getCurrentQuestion();
-  const questionMeta = questionMetaCache.get(currentQuestionNum);
-  const allowHalfPoints = questionMeta?.allowHalfPoints ?? true; // Default to true if not yet loaded
-  
-  if (btn.classList.contains('plus')) {
-    if (allowHalfPoints) {
-      if (current === -0.5) current = 0;
-      else if (current === 0) current = 0.5;
-      else if (current === 0.5) current = 1;
-      else current += 1;
-    } else {
-      current += 1;
-    }
-  } else if (btn.classList.contains('minus')) {
-    if (allowHalfPoints) {
-      if (current === 0.5) current = 0;
-      else if (current === 0) current = -0.5;
-      else if (current === -0.5) current = -1;
-      else current -= 1;
-    } else {
-      current -= 1;
-    }
-  }
-  pointsValue.textContent = formatPointsValue(current);
-  const row = btn.closest('tr[data-team-id]');
-  if (!row) return;
-  const teamId = parseInt(row.dataset.teamId, 10);
-  if (!Number.isFinite(teamId)) return;
-  const prevPoints = Number(answersMap[teamId]?.awarded_points ?? 0);
-  const baseTotal = totalPointsMap[teamId] ?? 0;
-  const delta = current - prevPoints;
-  const totalCell = row.querySelector('.total');
-  if (totalCell) totalCell.textContent = baseTotal + delta;
-  dirtyPointTeams.add(teamId);
-});
-
-// Delegate delete team option clicks
-document.addEventListener('click', function(e) {
-  const deleteOption = e.target.closest('.delete-team-option');
-  if (!deleteOption) return;
-  
-  const teamId = Number(deleteOption.dataset.teamId);
-  if (!Number.isFinite(teamId)) return;
-  
-  const row = document.querySelector(`tr[data-team-id="${teamId}"]`);
-  if (!row) return;
-  
-  const teamName = row.querySelector('.team-name')?.textContent || 'Unknown Team';
-  
-  if (!confirm(`Are you sure you want to delete the team "${teamName}"? This action cannot be undone.`)) {
-    return;
-  }
-  
-  deleteTeam(teamId);
-});
-
-// Handle team actions menu toggle
-document.addEventListener('click', function(e) {
-  const actionBtn = e.target.closest('.team-actions-btn');
-  if (!actionBtn) return;
-  
-  e.stopPropagation();
-  
-  // Close all other dropdowns
-  document.querySelectorAll('.team-actions-dropdown').forEach(dropdown => {
-    if (dropdown !== actionBtn.nextElementSibling) {
-      dropdown.style.display = 'none';
-    }
-  });
-  
-  // Toggle current dropdown
-  const dropdown = actionBtn.nextElementSibling;
-  if (dropdown && dropdown.classList.contains('team-actions-dropdown')) {
-    dropdown.style.display = dropdown.style.display === 'none' || !dropdown.style.display ? 'block' : 'none';
-  }
-});
-
-// Close dropdowns when clicking outside
-document.addEventListener('click', function(e) {
-  if (!e.target.closest('.team-actions-menu')) {
-    document.querySelectorAll('.team-actions-dropdown').forEach(dropdown => {
-      dropdown.style.display = 'none';
-    });
-  }
-});
-
-async function deleteTeam(teamId) {
-  try {
-    const res = await fetch(API_BASE + '/team/' + teamId, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    
-    if (!res.ok) {
-      throw new Error('Failed to delete team');
-    }
-    
-    // Remove from local data structures
-    answersMap = Object.fromEntries(
-      Object.entries(answersMap).filter(([key, _]) => Number(key) !== teamId)
-    );
-    teamsList = teamsList.filter(team => team.id !== teamId);
-    
-    // Recalculate totals after deletion
-    calculateTotals();
-    
-    // Re-render the team rows
-    await loadTeams();
-  } catch (err) {
-    alert('Error deleting team: ' + err.message);
-  }
-}
-
-// Initial load and question navigation
-const QUESTION_STORAGE_KEY = 'controlpanel.currentQuestion';
-let maxQuestions = 20;
+const $ = selector => document.querySelector(selector);
+const api = TriviaSession.request;
+let sessions = [];
+let selected = null;
 let currentQuestion = 1;
-const questionLabelCache = new Map();
-const questionMetaCache = new Map();
-let categoriesList = [];
-let categoriesLoaded = false;
-
-function initCurrentQuestion() {
-  const storedQuestion = parseInt(localStorage.getItem(QUESTION_STORAGE_KEY) || '', 10);
-  currentQuestion = Number.isFinite(storedQuestion) && storedQuestion >= 1 && storedQuestion <= maxQuestions
-    ? storedQuestion
-    : 1;
+let maxQuestions = 21;
+let categories = [];
+let meta = {};
+let teams = [];
+let answers = [];
+const dirty = new Map();
+let busy = false;
+let ready = false;
+let dialogMode = '';
+let dialogSessionId = null;
+const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const questionKey = id => `controlpanel.${id}.currentQuestion`;
+const scoped = (suffix = '') => TriviaSession.base(selected.id) + suffix;
+function message(text = '', error = false) {
+  $('#hostStatus').textContent = text;
+  $('#hostStatus').classList.toggle('is-error', error);
 }
-
-initCurrentQuestion();
-
-async function loadQuestionMeta(questionNum) {
-  if (questionMetaCache.has(questionNum)) return questionMetaCache.get(questionNum);
-  try {
-    const res = await fetch(API_BASE + '/question-config/' + questionNum, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to load question config');
-    const cfg = await res.json();
-    const meta = {
-      label: cfg.label || `Question ${questionNum}`,
-      category: cfg.category || '',
-      icon: cfg.icon || '',
-      allowHalfPoints: cfg.allowHalfPoints ?? false
-    };
-    questionMetaCache.set(questionNum, meta);
-    questionLabelCache.set(questionNum, meta.label);
-    return meta;
-  } catch (err) {
-    console.error('Error loading question label:', err);
-    const fallback = { label: `Question ${questionNum}`, category: '', icon: '', allowHalfPoints: false };
-    questionMetaCache.set(questionNum, fallback);
-    questionLabelCache.set(questionNum, fallback.label);
-    return fallback;
+function syncControls() {
+  $('#gamePanel').hidden = !selected;
+  $('#gamePanel').inert = busy || !ready || !selected;
+  $('#gamePanel').setAttribute('aria-busy', String(busy));
+  $('#emptySession').hidden = !!selected || busy;
+  $('#sessionToggle').disabled = busy;
+  $('#emptyCreate').disabled = busy;
+  $('.nav-prev').disabled = currentQuestion <= 1;
+  $('.nav-next').disabled = currentQuestion >= maxQuestions;
+}
+// Every load/write/navigation takes this lock. A switch cannot interleave with a
+// score save or render; the target session and question stay fixed until it ends.
+async function action(task) {
+  if (busy) return;
+  const previousFocus = document.activeElement;
+  const previousSession = selected?.id;
+  const scoreTeam = previousFocus.closest?.('tr[data-team-id]')?.dataset.teamId;
+  const scoreButton = previousFocus.classList.contains('points-btn') ? (previousFocus.classList.contains('plus') ? 'plus' : 'minus') : null;
+  busy = true;
+  syncControls();
+  try { await task(); }
+  catch (error) { message(error.message + (dirty.size ? ' Your scores are still pending; retry before switching.' : ''), true); }
+  finally {
+    busy = false; syncControls();
+    if (!$('#sessionDialog').open && document.activeElement === document.body && previousFocus !== document.body) {
+      const scoreFocus = previousSession === selected?.id && scoreButton ? $(`tr[data-team-id="${scoreTeam}"] .${scoreButton}`) : null;
+      (scoreFocus || (previousFocus.isConnected && !previousFocus.disabled ? previousFocus : $('#sessionToggle'))).focus();
+    }
   }
 }
-
-async function loadCategoriesList() {
-  if (categoriesLoaded && categoriesList.length) return categoriesList;
-  try {
-    const res = await fetch(API_BASE + '/categories', { cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to load categories');
-    const data = await res.json();
-    const list = Array.isArray(data.categories) ? data.categories : (Array.isArray(data) ? data : []);
-    categoriesList = list
-      .filter(item => item && typeof item === 'object')
-      .map(item => ({
-        label: typeof item.label === 'string' ? item.label : '',
-        icon: typeof item.icon === 'string' ? item.icon : ''
-      }));
-    categoriesLoaded = true;
-  } catch (err) {
-    console.error('Error loading categories:', err);
-    categoriesList = [];
-    categoriesLoaded = false;
-  }
-  return categoriesList;
+function closeMenu(focus = false) {
+  $('#sessionMenu').hidden = true;
+  $('#sessionToggle').setAttribute('aria-expanded', 'false');
+  if (focus) $('#sessionToggle').focus();
 }
-
-function renderCategorySelect(meta) {
-  const categorySelect = document.getElementById('categorySelect');
-  if (!categorySelect) return;
-
-  const categoryText = String(meta.category || '').trim();
-  const iconText = String(meta.icon || '').trim();
-  categorySelect.innerHTML = '';
-
-  const blankOption = document.createElement('option');
-  blankOption.value = '';
-  blankOption.textContent = 'Choose a category';
-  categorySelect.appendChild(blankOption);
-
-  categorySelect.disabled = false;
-
-  categoriesList.forEach((item, index) => {
-    const option = document.createElement('option');
-    option.value = String(index);
-    option.dataset.label = item.label;
-    option.dataset.icon = item.icon;
-    const labelText = `${item.icon || ''} ${item.label || ''}`.trim();
-    option.textContent = labelText || 'Unnamed category';
-    categorySelect.appendChild(option);
-  });
-
-  if (categoryText || iconText) {
-    const matchIndex = categoriesList.findIndex(item =>
-      String(item.label || '').trim() === categoryText && String(item.icon || '').trim() === iconText
-    );
-    if (matchIndex >= 0) {
-      categorySelect.value = String(matchIndex);
+function renderMenu() {
+  $('#sessionName').textContent = selected?.name || 'Select a session';
+  $('#sessionPin').textContent = selected?.passcode || '—';
+  $('#sessionMenu').innerHTML = sessions.map(game => `<button role="menuitemradio" aria-checked="${game.id === selected?.id}" data-session="${game.id}"><span>${game.id === selected?.id ? '✓ ' : ''}${escapeHtml(game.name)}</span><small>${game.passcode}</small></button>`).join('') +
+    `<div role="separator"></div><button role="menuitem" data-action="create">+ Create session</button><button role="menuitem" data-action="rename" ${selected ? '' : 'disabled'}>Rename session…</button><button role="menuitem" data-action="delete" class="danger-text" ${selected ? '' : 'disabled'}>Delete session…</button>`;
+}
+async function refreshSessions() {
+  sessions = await api('/api/sessions');
+  if (selected) {
+    const fresh = sessions.find(game => game.id === selected.id);
+    if (!fresh) {
+      selected = null; ready = false; dirty.clear(); teams = []; answers = [];
+      TriviaSession.select(null);
+      message('This session was deleted. Choose or create a session.');
     } else {
-      const customOption = document.createElement('option');
-      customOption.value = '__custom';
-      customOption.textContent = `${iconText} ${categoryText}`.trim();
-      customOption.dataset.label = categoryText;
-      customOption.dataset.icon = iconText;
-      categorySelect.appendChild(customOption);
-      categorySelect.value = '__custom';
-    }
-  } else {
-    categorySelect.value = '';
-  }
-
-  categorySelect.classList.toggle('is-placeholder', categorySelect.value === '');
-}
-
-function updateNavButtons() {
-  const prevBtn = document.querySelector('.nav-prev');
-  const nextBtn = document.querySelector('.nav-next');
-  const atFirst = currentQuestion <= 1;
-  const atLast = currentQuestion >= maxQuestions;
-  if (prevBtn) {
-    prevBtn.disabled = atFirst;
-    prevBtn.setAttribute('aria-disabled', String(atFirst));
-    prevBtn.style.opacity = atFirst ? '0.6' : '1';
-  }
-  if (nextBtn) {
-    nextBtn.disabled = atLast;
-    nextBtn.setAttribute('aria-disabled', String(atLast));
-    nextBtn.style.opacity = atLast ? '0.6' : '1';
-  }
-}
-
-async function updatePill() {
-  const meta = await loadQuestionMeta(currentQuestion);
-  document.querySelector('.question-header').textContent = meta.label;
-  localStorage.setItem(QUESTION_STORAGE_KEY, String(currentQuestion));
-  updateNavButtons();
-  await loadCategoriesList();
-  renderCategorySelect(meta);
-}
-
-async function reloadForQuestion() {
-  await updatePill();
-  await loadAnswers();
-}
-
-async function submitHostPointsForCurrentQuestion() {
-  // For each team, get the points from the UI and submit if changed
-  const question = getCurrentQuestion();
-  for (const team of teamsList) {
-    const row = document.querySelector(`tr[data-team-id="${team.id}"]`);
-    if (!row) continue;
-    const pointsValue = row.querySelector('.points-value');
-    if (!pointsValue) continue;
-    const newPoints = Number.parseFloat(pointsValue.textContent) || 0;
-    const prevPoints = Number(answersMap[team.id]?.awarded_points ?? 0);
-    if (newPoints !== prevPoints) {
-      // Submit only if changed
-      await fetch(API_BASE + '/answer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          teamId: team.id,
-          question,
-          awardedPoints: newPoints
-        })
-      });
-      dirtyPointTeams.delete(team.id);
-    }
-  }
-}
-
-document.querySelectorAll('.footerbar .btn').forEach((btn) => {
-  btn.addEventListener('click', async () => {
-    if (btn.disabled) return;
-    await submitHostPointsForCurrentQuestion();
-    if (btn.classList.contains('nav-prev')) {
-      if (currentQuestion > 1) currentQuestion--;
-    } else if (btn.classList.contains('nav-next')) {
-      if (currentQuestion < maxQuestions) currentQuestion++;
-    }
-    await reloadForQuestion();
-  });
-});
-
-const leaderboardLink = document.querySelector('.leaderboard-link');
-leaderboardLink.addEventListener('click', async (event) => {
-  event.preventDefault();
-  await submitHostPointsForCurrentQuestion();
-  window.location.href = leaderboardLink.getAttribute('href');
-});
-
-// Override getCurrentQuestion to use currentQuestion variable
-function getCurrentQuestion() {
-  return currentQuestion;
-}
-
-// Load current game passcode and set up input
-(async () => {
-  try {
-    const configRes = await fetch(API_BASE + '/config', { cache: 'no-store' });
-    if (configRes.ok) {
-      const cfg = await configRes.json();
-      if (Number.isFinite(cfg.maxQuestions) && cfg.maxQuestions > 0) {
-        maxQuestions = cfg.maxQuestions;
-        initCurrentQuestion();
+      if (fresh.revision !== selected.revision) {
+        dirty.clear(); currentQuestion = 1; ready = false;
+        localStorage.setItem(questionKey(fresh.id), '1');
+        message('This session was reset. Teams will need to join again.');
       }
+      selected = fresh;
     }
-    const res = await fetch(API_BASE + '/current-game');
-    if (res.ok) {
-      const game = await res.json();
-      if (game && game.passcode) {
-        const passInput = document.querySelector('.passcode-input');
-        passInput.value = game.passcode;
-        passInput.style.color = '#999';
-      }
-    }
-    await loadCategoriesList();
-  } catch (err) {
-    console.error('Error loading current game:', err);
   }
-  const passInput = document.querySelector('.passcode-input');
-  passInput.addEventListener('focus', function() {
-    if (this.style.color === 'rgb(153, 153, 153)') {
-      this.style.color = 'inherit';
-    }
-  });
-  passInput.addEventListener('input', function() {
-    this.style.color = 'inherit';
-  });
-  await reloadForQuestion();
-})();
-
-const categorySelect = document.getElementById('categorySelect');
-if (categorySelect) {
-  categorySelect.addEventListener('change', async () => {
-    if (categorySelect.value === '__custom' || categorySelect.disabled) return;
-    categorySelect.classList.toggle('is-placeholder', categorySelect.value === '');
-    const option = categorySelect.options[categorySelect.selectedIndex];
-    const category = option?.dataset.label || '';
-    const icon = option?.dataset.icon || '';
+  renderMenu();
+}
+function renderTeams() {
+  const totals = new Map();
+  const byTeam = new Map();
+  for (const answer of answers) {
+    totals.set(answer.team_id, (totals.get(answer.team_id) || 0) + (answer.awarded_points || 0));
+    if (answer.question_number === currentQuestion) byTeam.set(answer.team_id, answer);
+  }
+  $('#teams-body').innerHTML = teams.length ? teams.map(team => {
+    const answer = byTeam.get(team.id) || {};
+    const awarded = dirty.get(team.id) ?? answer.awarded_points ?? 0;
+    const total = (totals.get(team.id) || 0) + awarded - (answer.awarded_points || 0);
+    return `<tr data-team-id="${team.id}"><td class="team"><div class="team-cell-wrapper"><span class="team-name">${escapeHtml(team.name)}</span><button class="team-actions-btn" data-delete="${team.id}" aria-label="Delete ${escapeHtml(team.name)}" title="Delete team">×</button></div></td><td class="answer">${escapeHtml(answer.answer)}</td><td class="bonus-answer">${escapeHtml(answer.bonus_answer)}</td><td class="chosen-points">${answer.chosen_points ?? 0}</td><td><div class="points-controls"><button class="points-btn minus" aria-label="Subtract points">−</button><span class="points-value">${awarded}</span><button class="points-btn plus" aria-label="Add points">+</button></div></td><td class="total">${total}</td></tr>`;
+  }).join('') : '<tr><td colspan="6">No teams yet — share the PIN to invite players.</td></tr>';
+}
+function renderCategory() {
+  const select = $('#categorySelect');
+  select.innerHTML = '<option value="">Choose a category</option>';
+  categories.forEach((item, index) => select.add(new Option(`${item.icon || ''} ${item.label}`, String(index))));
+  const match = categories.findIndex(item => item.label === meta.category && (item.icon || '') === (meta.icon || ''));
+  if (match >= 0) select.value = String(match);
+  else if (meta.category || meta.icon) {
+    select.add(new Option(`${meta.icon || ''} ${meta.category || ''}`, 'custom'));
+    select.value = 'custom';
+  }
+  select.classList.toggle('is-placeholder', select.value === '');
+}
+async function loadGame() {
+  if (!selected) return;
+  const [data, question] = await Promise.all([api(scoped('/all-answers')), api(scoped('/question-config/' + currentQuestion))]);
+  teams = data.teams; answers = data.answers; meta = question;
+  // A team removed by another host must not leave an unsavable dirty score.
+  for (const id of dirty.keys()) if (!teams.some(team => team.id === id)) dirty.delete(id);
+  renderTeams(); renderCategory();
+  $('.question-header').textContent = meta.label || `Question ${currentQuestion}`;
+  $('.leaderboard-link').href = TriviaSession.url('leaderboard.html', selected.id);
+  localStorage.setItem(questionKey(selected.id), String(currentQuestion));
+  ready = true;
+}
+async function saveScores() {
+  if (!selected || !dirty.size) return;
+  const base = scoped('/answer');
+  const question = currentQuestion;
+  for (const [teamId, awardedPoints] of dirty) {
     try {
-      await fetch(API_BASE + '/question-category', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          questionNumber: currentQuestion,
-          category,
-          icon
-        })
-      });
-      const meta = await loadQuestionMeta(currentQuestion);
-      meta.category = category;
-      meta.icon = icon;
-      questionMetaCache.set(currentQuestion, meta);
-    } catch (err) {
-      console.error('Error saving category:', err);
+      await api(base, { method: 'POST', body: JSON.stringify({ teamId, question, awardedPoints }) });
+    } catch (error) {
+      if (error.status === 404) {
+        const team = await api(scoped('/team/' + teamId + '/exists'));
+        if (!team.exists) {
+          dirty.delete(teamId);
+          teams = teams.filter(item => item.id !== teamId);
+          answers = answers.filter(item => item.team_id !== teamId);
+          continue;
+        }
+      }
+      throw error;
     }
+    let saved = answers.find(answer => answer.team_id === teamId && answer.question_number === question);
+    if (!saved) { saved = { team_id: teamId, question_number: question }; answers.push(saved); }
+    saved.awarded_points = awardedPoints;
+    dirty.delete(teamId);
+  }
+  message('Scores saved.');
+}
+async function switchSession(id) {
+  await saveScores();
+  const game = sessions.find(item => item.id === Number(id));
+  if (!game) throw new Error('Session no longer exists');
+  selected = game;
+  dirty.clear(); teams = []; answers = []; meta = {}; ready = false;
+  const stored = Number(localStorage.getItem(questionKey(game.id)));
+  currentQuestion = Number.isInteger(stored) && stored >= 1 && stored <= maxQuestions ? stored : 1;
+  TriviaSession.select(game.id);
+  renderMenu(); renderTeams();
+  message();
+  await loadGame();
+}
+$('#sessionToggle').addEventListener('click', () => {
+  const opening = $('#sessionMenu').hidden;
+  $('#sessionMenu').hidden = !opening;
+  $('#sessionToggle').setAttribute('aria-expanded', String(opening));
+  if (opening) $('#sessionMenu button:not(:disabled)')?.focus();
+});
+$('.session-picker').addEventListener('keydown', event => {
+  if (event.key === 'Escape') { closeMenu(true); return; }
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  $('#sessionMenu').hidden = false; $('#sessionToggle').setAttribute('aria-expanded', 'true');
+  const items = [...$('#sessionMenu').querySelectorAll('button:not(:disabled)')];
+  const index = items.indexOf(document.activeElement);
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (index + (event.key === 'ArrowUp' ? -1 : 1) + items.length) % items.length;
+  items[next]?.focus();
+});
+$('.session-picker').addEventListener('focusout', event => { if (!$('.session-picker').contains(event.relatedTarget)) closeMenu(); });
+document.addEventListener('click', event => { if (!event.target.closest('.session-picker')) closeMenu(); });
+$('#sessionMenu').addEventListener('click', event => {
+  const button = event.target.closest('button');
+  if (!button || button.disabled) return;
+  closeMenu();
+  if (button.dataset.session) action(async () => { await switchSession(button.dataset.session); });
+  else openDialog(button.dataset.action);
+});
+async function openDialog(mode) {
+  await action(async () => {
+    await refreshSessions();
+    if (mode !== 'create' && !selected) return;
+    await saveScores();
+    dialogMode = mode; dialogSessionId = selected?.id;
+    const titles = { create: 'Create session', rename: 'Rename session', delete: 'Delete session', reset: 'Reset game' };
+    $('#dialogTitle').textContent = titles[mode];
+    $('#dialogSubmit').textContent = titles[mode];
+    $('#dialogSubmit').classList.toggle('danger-text', mode === 'delete');
+    $('#dialogDescription').textContent = mode === 'delete' ? `Delete “${selected.name}”? Its teams, answers, scores, and categories will be permanently removed. Other sessions will continue.` : mode === 'reset' ? `Reset “${selected.name}”? This clears its teams, answers, scores, and categories. Players will need to rejoin. You can keep or change its PIN.` : mode === 'create' ? 'Give this game a name and a unique PIN to share with players.' : 'Change the name while keeping this session’s PIN and players.';
+    const nameVisible = mode === 'create' || mode === 'rename';
+    const pinVisible = mode === 'create' || mode === 'reset';
+    $('#nameLabel').hidden = !nameVisible; $('#sessionNameInput').disabled = !nameVisible;
+    $('#pinLabel').hidden = !pinVisible; $('#sessionPinInput').disabled = !pinVisible;
+    $('#sessionNameInput').value = mode === 'create' ? '' : selected.name;
+    $('#sessionPinInput').value = mode === 'create' ? (await api('/api/available-pin')).passcode : selected.passcode;
+    $('#dialogError').textContent = '';
+    $('#sessionDialog').showModal();
+    (nameVisible ? $('#sessionNameInput') : mode === 'reset' ? $('#sessionPinInput') : $('#dialogCancel')).focus();
   });
 }
-
-setInterval(async () => {
-  if (document.visibilityState !== 'visible') return;
-  if (isLiveRefreshing) return;
-  isLiveRefreshing = true;
-  try {
-    if (dirtyPointTeams.size > 0) {
-      await submitHostPointsForCurrentQuestion();
-    }
-    await loadAnswers({ preserveDirty: true });
-  } catch (err) {
-    console.error('Error refreshing answers:', err);
-  } finally {
-    isLiveRefreshing = false;
+$('#emptyCreate').addEventListener('click', () => openDialog('create'));
+$('.reset-game').addEventListener('click', () => openDialog('reset'));
+$('#dialogCancel').addEventListener('click', () => $('#sessionDialog').close());
+$('#sessionDialog').addEventListener('close', () => $('#sessionToggle').focus());
+$('#sessionDialog').addEventListener('cancel', event => { if (busy) event.preventDefault(); });
+$('#sessionForm').addEventListener('submit', event => {
+  event.preventDefault();
+  action(async () => {
+    $('#sessionForm').inert = true;
+    try {
+      const target = dialogSessionId ? TriviaSession.base(dialogSessionId) : '';
+      const name = $('#sessionNameInput').value.trim();
+      const passcode = $('#sessionPinInput').value;
+      let game;
+      if (dialogMode === 'create') game = await api('/api/sessions', { method: 'POST', body: JSON.stringify({ name, passcode }) });
+      if (dialogMode === 'rename') game = await api(target, { method: 'PATCH', body: JSON.stringify({ name }) });
+      if (dialogMode === 'delete') {
+        await api(target, { method: 'DELETE' });
+        localStorage.removeItem(questionKey(dialogSessionId)); selected = null; dirty.clear();
+      }
+      if (dialogMode === 'reset') {
+        game = await api(target + '/reset', { method: 'POST', body: JSON.stringify({ passcode }) });
+        localStorage.setItem(questionKey(game.id), '1'); dirty.clear(); selected = game;
+      }
+      // The mutation has succeeded. Close before reloading so a network error
+      // cannot leave a Create button that would accidentally duplicate a session.
+      $('#sessionDialog').close();
+      await refreshSessions();
+      const next = game?.id || sessions[0]?.id;
+      if (next) await switchSession(next);
+      else { TriviaSession.select(null); ready = false; renderMenu(); message('No sessions. Create one to start hosting.'); }
+    } catch (error) {
+      if ($('#sessionDialog').open) $('#dialogError').textContent = error.message;
+      else throw error;
+    } finally { $('#sessionForm').inert = false; }
+  });
+});
+$('#teams-body').addEventListener('click', event => {
+  if (busy || !selected || !ready) return;
+  const button = event.target.closest('button');
+  if (!button) return;
+  const teamId = Number(button.closest('tr').dataset.teamId);
+  if (button.dataset.delete) {
+    const team = teams.find(item => item.id === teamId);
+    if (!confirm(`Delete team “${team.name}” and its answers from “${selected.name}”?`)) return;
+    action(async () => { await api(scoped('/team/' + teamId), { method: 'DELETE' }); dirty.delete(teamId); await loadGame(); });
+    return;
   }
-}, LIVE_REFRESH_MS);
+  const row = button.closest('tr');
+  let value = Number(row.querySelector('.points-value').textContent);
+  const direction = button.classList.contains('plus') ? 1 : -1;
+  if (meta.allowHalfPoints && Math.abs(value + direction * 0.5) <= 1) value += direction * 0.5;
+  else value += direction;
+  dirty.set(teamId, value);
+  // Keep the focused button alive for keyboard scoring.
+  const previous = Number(row.querySelector('.points-value').textContent);
+  row.querySelector('.points-value').textContent = String(value);
+  row.querySelector('.total').textContent = String(Number(row.querySelector('.total').textContent) + value - previous);
+  message('Saving scores shortly…');
+});
+for (const [selector, step] of [['.nav-prev', -1], ['.nav-next', 1]]) $(selector).addEventListener('click', () => action(async () => {
+  await saveScores();
+  currentQuestion = Math.min(maxQuestions, Math.max(1, currentQuestion + step));
+  ready = false; await loadGame();
+}));
+$('#categorySelect').addEventListener('change', () => {
+  const value = $('#categorySelect').value;
+  if (value === 'custom') return;
+  const category = value === '' ? { label: '', icon: '' } : categories[Number(value)];
+  action(async () => {
+    try {
+      await api(scoped('/question-category'), { method: 'POST', body: JSON.stringify({ questionNumber: currentQuestion, category: category.label, icon: category.icon || '' }) });
+      meta.category = category.label; meta.icon = category.icon || ''; message('Category saved.');
+    } finally { renderCategory(); }
+  });
+});
+$('.leaderboard-link').addEventListener('click', event => {
+  event.preventDefault();
+  action(async () => { await saveScores(); location.href = TriviaSession.url('leaderboard.html', selected.id); });
+});
+window.addEventListener('beforeunload', event => { if (dirty.size) { event.preventDefault(); event.returnValue = ''; } });
+async function refresh() {
+  if (busy || $('#sessionDialog').open || !$('#sessionMenu').hidden || document.visibilityState !== 'visible') return;
+  await action(async () => { await refreshSessions(); if (selected) { await saveScores(); await loadGame(); } });
+}
+action(async () => {
+  const [config, categoryData] = await Promise.all([api('/api/config'), api('/api/categories')]);
+  maxQuestions = config.maxQuestions; categories = categoryData.categories;
+  await refreshSessions();
+  const requested = TriviaSession.id();
+  const initial = requested ? sessions.find(game => String(game.id) === requested) : sessions[0];
+  if (initial) await switchSession(initial.id);
+  else message(requested ? 'That session no longer exists. Choose or create a session.' : 'Create a session to start hosting.');
+});
+setInterval(refresh, 5000);
+document.addEventListener('visibilitychange', refresh);

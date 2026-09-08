@@ -1,5 +1,5 @@
 # Use official Node.js LTS image
-FROM node:20
+FROM node:24
 
 # Install build dependencies for better-sqlite3
 RUN apt-get update && apt-get install -y \

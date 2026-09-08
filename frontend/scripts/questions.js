@@ -1,34 +1,20 @@
-const API_BASE = '/api';
+(function () {
 const SESSION_CHECK_MS = 5000;
 let roundMapCache = null;
-
-// Session + question state setup
-function readTeamValue(key) {
-  return localStorage.getItem(key) || sessionStorage.getItem(key);
-}
-
-const teamId = readTeamValue('teamId');
-const teamName = readTeamValue('teamName');
-const storedGameId = readTeamValue('gameId');
-
-if (teamId) {
-  // Migrate any sessionStorage values into localStorage for cross-tab persistence
-  localStorage.setItem('teamId', teamId);
-  if (teamName) localStorage.setItem('teamName', teamName);
-  if (storedGameId) localStorage.setItem('gameId', storedGameId);
-}
-
-if (!teamId) {
-  alert('Team ID not found. Please join the game first.');
-  window.location.replace('play.html');
-}
-
+const gameId = TriviaSession.id() || localStorage.getItem('gameId') || sessionStorage.getItem('gameId');
+const membership = TriviaSession.membership(gameId);
+if (!membership) { window.location.replace('play.html'); return; }
+TriviaSession.select(gameId);
+TriviaSession.save(membership);
+const teamId = String(membership.teamId);
+const teamName = membership.teamName;
+const API_BASE = TriviaSession.base(gameId);
 let currentQuestion = new URLSearchParams(window.location.search).get('q') || 1;
-currentQuestion = parseInt(currentQuestion, 10);
+currentQuestion = Math.max(1, parseInt(currentQuestion, 10) || 1);
 let maxQuestions = 21;
 let questionConfig = {};
 let hasResetAlerted = false;
-let hasTeamDeletedAlerted = false;
+
 
 const submitBtn = document.querySelector('.btn');
 const submitLabel = submitBtn?.querySelector('.btn__label') || submitBtn;
@@ -67,7 +53,7 @@ async function confirmAnswerSaved(retries = 3) {
       const res = await fetch(API_BASE + '/answers/' + currentQuestion, { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to check answer');
       const answers = await res.json();
-      const hasAnswered = answers.some(ans => ans.team_id === parseInt(teamId, 10));
+      const hasAnswered = answers.some(ans => ans.team_id === parseInt(teamId, 10) && (ans.answer || '').trim());
       if (hasAnswered) return true;
     } catch (err) {
       console.error('Error confirming saved answer:', err);
@@ -112,77 +98,24 @@ function ensureSparkles() {
   }
 }
 
-function clearTeamSession() {
-  localStorage.removeItem('teamId');
-  localStorage.removeItem('teamName');
-  localStorage.removeItem('gameId');
-  sessionStorage.removeItem('teamId');
-  sessionStorage.removeItem('teamName');
-  sessionStorage.removeItem('gameId');
-}
-
+let validationPending = null;
 async function validateGameSession() {
-  // Skip if already alerted
-  if (hasResetAlerted) return true;
-  
-  const teamId = readTeamValue('teamId');
-  const storedGameId = readTeamValue('gameId');
-
-  if (!teamId || !storedGameId) {
-    clearTeamSession();
+  if (hasResetAlerted) return false;
+  if (validationPending) return validationPending;
+  validationPending = (async () => {
+    try {
+      const data = await TriviaSession.request(API_BASE + '/team/' + teamId + '/exists');
+      if (data.exists) return true;
+    } catch (error) {
+      if (error.status !== 404) { console.error(error); return false; }
+    }
+    hasResetAlerted = true;
+    TriviaSession.clear(gameId);
+    alert('Your session was deleted or reset, or your team was removed. Please join again.');
     window.location.replace('play.html');
     return false;
-  }
-
-  try {
-    const res = await fetch(API_BASE + '/current-game', { cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to check game');
-    const currentGame = await res.json();
-
-    if (!currentGame || currentGame.id !== parseInt(storedGameId, 10)) {
-      console.log('Game reset detected!');
-      hasResetAlerted = true;
-      clearTeamSession();
-      alert('The game has been reset. Please join again.');
-      window.location.replace('play.html');
-      return false;
-    }
-  } catch (err) {
-    console.error('Error validating game session:', err);
-  }
-
-  return true;
-}
-
-async function validateTeamExists() {
-  // If game was already reset, don't check team existence (teams are deleted on reset)
-  if (hasResetAlerted) return true;
-  
-  // Skip if already alerted
-  if (hasTeamDeletedAlerted) return false;
-  
-  const teamId = readTeamValue('teamId');
-  
-  if (!teamId) return true;
-  
-  try {
-    const res = await fetch(API_BASE + '/team/' + teamId + '/exists', { cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to check team');
-    const data = await res.json();
-
-    if (!data.exists) {
-      console.log('Team deletion detected!');
-      hasTeamDeletedAlerted = true;
-      clearTeamSession();
-      alert('Your team has been deleted by the host. Please join the game again.');
-      window.location.replace('play.html');
-      return false;
-    }
-  } catch (err) {
-    console.error('Error validating team existence:', err);
-  }
-
-  return true;
+  })();
+  try { return await validationPending; } finally { validationPending = null; }
 }
 
 async function updatePageForQuestion(questionNum) {
@@ -204,8 +137,7 @@ async function updatePageForQuestion(questionNum) {
     progressBar.style.width = `${percent}%`;
   }
 
-  // Validate game session
-  validateGameSession();
+  if (!await validateGameSession()) return;
 
   // Clear answer field for new question
   if (answerField) answerField.value = '';
@@ -282,7 +214,7 @@ async function redirectIfAnsweredQuestion() {
       }
     }
     if (!nextUnanswered || nextUnanswered === currentQuestion) return false;
-    window.location.replace(`questions.html?q=${nextUnanswered}`);
+    window.location.replace(TriviaSession.url('questions.html', gameId, { q: nextUnanswered }));
     return true;
   } catch (err) {
     console.error('Error finding next unanswered question:', err);
@@ -462,6 +394,7 @@ if (submitBtn) submitBtn.addEventListener('click', async () => {
       setSubmitLabel(originalText);
       return;
     }
+    if (!await validateGameSession()) throw new Error('Unable to validate your team. Please try again.');
     const res = await fetch(API_BASE + '/answer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -483,7 +416,7 @@ if (submitBtn) submitBtn.addEventListener('click', async () => {
     if (currentQuestion < maxQuestions) {
       currentQuestion++;
       setTimeout(() => {
-        window.location.href = `questions.html?q=${currentQuestion}`;
+        window.location.href = TriviaSession.url('questions.html', gameId, { q: currentQuestion });
       }, 1400);
     } else {
       alert(`Congratulations, you have completed the game!`);
@@ -513,12 +446,16 @@ if (submitBtn) submitBtn.addEventListener('click', async () => {
   }
 });
 
+TriviaSession.request(API_BASE).then(game => {
+  document.getElementById('gameNameDisplay').textContent = game.name;
+}).catch(error => console.error(error));
+
 // Initialize page for current question + session validation
 (async () => {
   const ok = await validateGameSession();
   if (!ok) return;
   try {
-    const configRes = await fetch(API_BASE + '/config', { cache: 'no-store' });
+    const configRes = await fetch('/api/config', { cache: 'no-store' });
     if (configRes.ok) {
       const cfg = await configRes.json();
       if (Number.isFinite(cfg.maxQuestions) && cfg.maxQuestions > 0) {
@@ -535,11 +472,13 @@ if (submitBtn) submitBtn.addEventListener('click', async () => {
 
   // Periodic session validation (handles reset while user is idle)
   setInterval(validateGameSession, SESSION_CHECK_MS);
-  setInterval(validateTeamExists, SESSION_CHECK_MS);
+
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       validateGameSession();
-      validateTeamExists();
+
     }
   });
+})();
+
 })();

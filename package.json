@@ -4,14 +4,20 @@
   "description": "Trivia night, made effortless",
   "main": "api/https-server.js",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22 <26"
   },
   "scripts": {
     "postinstall": "npm rebuild better-sqlite3",
     "start": "node api/https-server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test",
+    "lint": "node scripts/check-syntax.js",
+    "test:load": "node scripts/load-sessions.js"
   },
-  "keywords": ["trivia", "quiz", "game"],
+  "keywords": [
+    "trivia",
+    "quiz",
+    "game"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
