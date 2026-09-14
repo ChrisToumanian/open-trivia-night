@@ -242,12 +242,81 @@ gcloud run deploy open-trivia-night --source . --region us-west1 --allow-unauthe
 
 The source deployment builds using this repository's Dockerfile through Cloud Build. No `cloudbuild.yaml` or Git push trigger is included in the repository. See [how source deployment works](https://docs.cloud.google.com/run/docs/deploying-source-code).
 
-When deployment finishes, open the returned service URL with `/host.html` for hosting or `/play.html` for teams. To redeploy later, update the checkout to the code you want to release and run the same deployment command:
+When deployment finishes, open the returned service URL with `/host.html` for hosting or `/play.html` for teams.
 
-```text
-git pull --ff-only
-gcloud run deploy open-trivia-night --source . --region us-west1 --allow-unauthenticated
-```
+### Redeploy the existing SPRK service from the latest branch
+
+These instructions match the service inspected in Google Cloud Console on September 14, 2026:
+
+| Setting | Value |
+| --- | --- |
+| Project ID | `open-trivia-night` |
+| Service name | `open-trivia-night` |
+| Region | `us-west1` |
+| GitHub repository | [`ChrisToumanian/open-trivia-night`](https://github.com/ChrisToumanian/open-trivia-night) |
+| Branch to deploy | **`sprk`** (includes SPRK branding; `main` uses the placeholder) |
+
+The **Source** tab currently offers **Connect to repo**, and **Revision History** identifies the existing deployment as made using `gcloud`. This service uses an uploaded source snapshot. Pushing to GitHub does not update it automatically, and the console's **Redeploy** button alone does not pull the latest `sprk` branch. Update a checkout and deploy that source using the steps below.
+
+Redeploy between games: the new instance does not inherit the old instance's SQLite database, so existing sessions, PINs, teams, and scores are not carried over by this deployment.
+
+1. **Open the service and Cloud Shell.** Open [this Cloud Run service](https://console.cloud.google.com/run/detail/us-west1/open-trivia-night/revisions?project=open-trivia-night). Confirm the project is **Open Trivia Night** and the region is **us-west1**. Click **Activate Cloud Shell** (`>_`) in the top toolbar, or use its terminal if already open. These commands run in Cloud Shell's Bash terminal; they do not require WSL or installations on your PC. Authorize Cloud Shell with your Google account if prompted.
+
+2. **Open a checkout of the repository.** Make sure the changes you want to deploy have been committed and pushed to GitHub's `sprk` branch first. Cloud Shell has its own files, separate from your PC. If `~/open-trivia-night` does not already exist, clone it once:
+
+   ```bash
+   git clone --branch sprk https://github.com/ChrisToumanian/open-trivia-night.git ~/open-trivia-night
+   ```
+
+   For both new and existing checkouts, open the folder and check for local edits:
+
+   ```bash
+   cd ~/open-trivia-night
+   git status --short
+   ```
+
+   If your existing checkout is elsewhere, use that path instead. Run each step only after the previous one succeeds. If Git lists local changes, save or commit them before continuing; do not discard customizations to get past an error.
+
+3. **Select `sprk` and pull its latest changes.** Run:
+
+   ```bash
+   git fetch origin
+   git switch sprk
+   git pull --ff-only origin sprk
+   git status --short --branch
+   git log -1 --oneline
+   git rev-parse HEAD origin/sprk
+   ```
+
+   Confirm the branch is `sprk`, the working tree has no file changes, and the last command prints two identical commit IDs. The commit shown by `git log` should match the latest commit on [GitHub's `sprk` branch](https://github.com/ChrisToumanian/open-trivia-night/tree/sprk). If the pull fails or the IDs differ, resolve that before deploying. `--ff-only` prevents an unexpected merge during deployment.
+
+4. **Build and deploy that checkout to the existing service.** Stay in the repository root, where `Dockerfile` is located, and run:
+
+   ```bash
+   gcloud run deploy open-trivia-night \
+     --project=open-trivia-night \
+     --region=us-west1 \
+     --source=. \
+     --max=1 \
+     --max-instances=1
+   ```
+
+   `--source=.` uploads the files from the current directory and builds a fresh image using the Dockerfile. The explicit project, service, and region update the existing deployment. Its current access settings are retained; there is no need to add `--allow-unauthenticated` again. Wait for the command to report a successful deployment before continuing. If it fails, follow the build-log link in the output and fix the reported error before retrying.
+
+   The inspected revision allowed up to 20 instances. The two maximum-instance flags set the service and new revision limits to one to reduce games being split across independent SQLite databases. **This is a mitigation, not durable storage or a guarantee of one instance at every moment:** Cloud Run can temporarily exceed its maximum during replacement or traffic spikes. See Google's [maximum-instance behavior](https://docs.cloud.google.com/run/docs/configuring/max-instances) and the storage limitations above.
+
+5. **Confirm it is serving traffic and open the app.** In the service page, click **Refresh**, then **Revision History**. Confirm the new revision is healthy and has **100%** of traffic. The inspected service already routes **100% (to latest)**, so a successful deployment should receive traffic automatically. If traffic was subsequently pinned to an older revision, after confirming the new deployment succeeded, run:
+
+   ```bash
+   gcloud run services update-traffic open-trivia-night \
+     --project=open-trivia-night \
+     --region=us-west1 \
+     --to-latest
+   ```
+
+   Open the [host dashboard](https://open-trivia-night-688078208484.us-west1.run.app/host.html) and [team join page](https://open-trivia-night-688078208484.us-west1.run.app/play.html). Refresh the browser, confirm the SPRK logo and session selector appear, then create a test session and join it using its PIN. Cloud Run starts the app automatically; no separate `npm start`, PM2, or terminal process needs to stay open.
+
+For later updates, repeat steps 2–5 using the existing checkout. Google's references explain [deploying a new revision from source](https://docs.cloud.google.com/run/docs/deploying-source-code) and [sending traffic to the latest revision](https://docs.cloud.google.com/run/docs/rollouts-rollbacks-traffic-migration#send_all_traffic_to_the_latest_revision).
 
 ## Other hosting platforms
 
@@ -271,7 +340,7 @@ Defaults work without creating any override files. To customize a setting, copy 
 
 Restart the server after changing question configuration or the category catalog. Refresh the browser after branding changes. For container deployments, rebuild and redeploy after changing files included in the image.
 
-`shared/config.json` and `shared/brand.json` are ignored by Git, so arrange to copy them to your deployment checkout when needed. `shared/categories.json` is not ignored. Review which customizations should be committed before updating or deploying.
+On this `sprk` branch, `shared/brand.json` and `frontend/images/brand-header.png` are committed, so pulling the branch includes the SPRK branding. `shared/config.json` is ignored by Git; arrange to provide any custom configuration in the deployment source when needed and check source-upload ignore rules. `shared/categories.json` is not ignored. Review which customizations should be committed before updating or deploying.
 
 The frontend files live in [`frontend/`](frontend/): edit `header.html`, `footer.html`, `styles.css`, or the individual page files for further customization. The default header logo is `frontend/images/logo-header.png`.
 
